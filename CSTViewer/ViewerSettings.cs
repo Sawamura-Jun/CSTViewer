@@ -86,7 +86,7 @@ public static class ViewerSettings
     public const int DetailCachePageLimit = 4;
     public const long PreviewCacheByteLimit = 128 * 1024 * 1024;
     public const long DetailCacheByteLimit = 128 * 1024 * 1024;
-    public static readonly bool EnablePerformanceLogging = true;
+    public static readonly bool EnablePerformanceLogging = false;
     public const int FirstRenderMeasurementTimeoutMilliseconds = 5000;
     public static string PerformanceLogPath => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

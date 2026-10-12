@@ -1,6 +1,5 @@
 using System.IO;
 using System.Reflection;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -230,10 +229,8 @@ public class DropInteractionTests
                 ((Button)window.FindName("FitImageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.True(((BitmapSource)image.Source).PixelWidth <= reduced.PixelWidth);
                 Assert.Contains("(Fit)", ((TextBlock)window.FindName("ZoomStatusText")).Text);
-                // 再拡大はキャッシュを使い、縮小用Bitmapを作るためのTIFF再読込も行わない。
-                await WaitForAsync(() => File.Exists(logPath)
-                    && File.ReadAllLines(logPath).Any(line => line.Contains("PageDetail")));
-                Assert.Single(File.ReadAllLines(logPath), line => line.Contains("PageDetail"));
+                // 詳細画像の読み込みやキャッシュ再利用でも、ログを作成しない。
+                Assert.False(File.Exists(logPath));
             }
             finally
             {
@@ -507,13 +504,13 @@ public class DropInteractionTests
     }
 
     [Fact]
-    public Task DropEvent_RecordsFirstRenderTimingAndDetachesMeasurement()
+    public Task DropEvent_LoadsImageWithoutPerformanceLogging()
     {
         return RunOnStaAsync(async () =>
         {
             string path = Path.Combine(Path.GetTempPath(), $"CSTViewer-render-{Guid.NewGuid()}.tiff");
             string logPath = Path.ChangeExtension(path, ".jsonl");
-            // 画面外で表示し、ユーザーの作業を妨げずにWPFの実際の描画通知を検証する。
+            // 画面外で表示し、実際のドロップ操作でも計測とログが始まらないことを確認する。
             var window = new MainWindow(logPath)
             {
                 ShowActivated = false,
@@ -535,39 +532,25 @@ public class DropInteractionTests
                 var data = new DataObject(DataFormats.FileDrop, new[] { path });
                 window.RaiseEvent(CreateDragEvent(window, data, DragDrop.PreviewDropEvent));
 
-                DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-                string[] lines = [];
-                while (DateTime.UtcNow < deadline && !lines.Any(IsFirstRenderEntry))
-                {
-                    await Task.Delay(20);
-                    try
-                    {
-                        if (File.Exists(logPath))
-                        {
-                            lines = await File.ReadAllLinesAsync(logPath);
-                        }
-                    }
-                    catch (IOException)
-                    {
-                        // 非同期の追記中なら、次の待機で読み直す。
-                    }
-                }
+                var displayedImage = (Image)window.FindName("DisplayedImage");
+                await WaitForAsync(() => displayedImage.Source is not null
+                    && ((FrameworkElement)window.FindName("LoadingOverlay")).Visibility == Visibility.Collapsed);
+                var loadedImage = Assert.IsAssignableFrom<BitmapSource>(displayedImage.Source);
+                Assert.Equal(80, loadedImage.PixelWidth);
+                Assert.Equal(60, loadedImage.PixelHeight);
+                Assert.Null(typeof(MainWindow).GetField("_pendingRenderMeasurement",
+                    BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window));
+                Assert.Null(typeof(MainWindow).GetField("_renderMeasurementTimeout",
+                    BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window));
+                Assert.False(File.Exists(logPath));
 
-                using JsonDocument json = JsonDocument.Parse(Assert.Single(lines, IsFirstRenderEntry));
-                JsonElement entry = json.RootElement;
-                Assert.Equal("FirstRenderCallback", entry.GetProperty("Outcome").GetString());
-                Assert.Equal(path, entry.GetProperty("FilePath").GetString());
-                Assert.True(entry.GetProperty("TotalMs").GetDouble() >= entry.GetProperty("ImageReadyMs").GetDouble());
-                Assert.True(entry.GetProperty("StagesMs").GetProperty("FirstRenderWait").GetDouble() >= 0);
-                Assert.True(entry.GetProperty("StagesMs").GetProperty("UiApply").GetDouble() >= 0);
-
-                // 閉じる時に二重記録せず、静的イベントとタイマーの参照も解除する。
+                // ウィンドウを閉じる際にもログを作成しない。
                 window.Close();
                 Assert.Null(typeof(MainWindow).GetField("_pendingRenderMeasurement",
                     BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window));
                 Assert.Null(typeof(MainWindow).GetField("_renderMeasurementTimeout",
                     BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window));
-                Assert.Single(await File.ReadAllLinesAsync(logPath), IsFirstRenderEntry);
+                Assert.False(File.Exists(logPath));
             }
             finally
             {
@@ -670,12 +653,6 @@ public class DropInteractionTests
             [data, DragDropKeyStates.None, DragDropEffects.Copy, window, new Point()], null)!;
         args.RoutedEvent = routedEvent;
         return args;
-    }
-
-    private static bool IsFirstRenderEntry(string line)
-    {
-        using var json = JsonDocument.Parse(line);
-        return json.RootElement.GetProperty("Outcome").GetString() == "FirstRenderCallback";
     }
 
     private static async Task DeleteLogAsync(string logPath)
