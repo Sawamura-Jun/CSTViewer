@@ -14,7 +14,7 @@ public class DirectoryImageListCacheTests
             return DirectoryImageList.Empty;
         });
         string directory = Path.Combine(Path.GetTempPath(), $"CSTViewer-cache-{Guid.NewGuid()}");
-        await cache.GetAsync(Path.Combine(directory, "01.tif"));
+        await cache.GetAsync(Path.Combine(directory, "01.PNG"));
         await cache.GetAsync(Path.Combine(directory.ToUpperInvariant(), "02.TIFF"));
         await cache.GetAsync(Path.Combine(directory, "image.png"));
         await cache.GetAsync(Path.Combine(directory, "03.tif"));
@@ -39,7 +39,7 @@ public class DirectoryImageListCacheTests
         await cache.GetAsync(other);
         Assert.Equal(2, calls);
         await cache.GetAsync(Path.ChangeExtension(first, ".png"));
-        Assert.Equal(2, calls);
+        Assert.Equal(3, calls);
         await cache.GetAsync(first);
         Assert.Equal(3, calls);
     }
@@ -62,14 +62,14 @@ public class DirectoryImageListCacheTests
             return DirectoryImageList.Empty;
         });
         string directory = Path.Combine(Path.GetTempPath(), $"CSTViewer-cache-{Guid.NewGuid()}");
-        Task<DirectoryImageList> first = cache.GetAsync(Path.Combine(directory, "01.tif"));
+        Task<DirectoryImageList> first = cache.GetAsync(Path.Combine(directory, "01.png"));
         try
         {
             CancellationToken token = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Task<DirectoryImageList> second = cache.GetAsync(Path.Combine(directory, "02.tif"));
             Assert.Same(first, second);
             Assert.Equal(1, calls);
-            await cache.GetAsync(Path.Combine(directory, "other", "01.tif"));
+            await cache.GetAsync(Path.Combine(directory, "other", "01.bmp"));
             Assert.True(token.IsCancellationRequested);
             Assert.Equal(2, calls);
             release.Set();

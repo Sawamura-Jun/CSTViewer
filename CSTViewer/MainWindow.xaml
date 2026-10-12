@@ -22,9 +22,14 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <!-- タイトルバー下の既存の余白に線を重ね、レイアウトの高さは変えない。 -->
+        <Border x:Name="TitleBarToolbarSeparator" VerticalAlignment="Top" Margin="-12,-12,-12,0"
+                Height="{x:Static local:ViewerSettings.TitleBarSeparatorHeight}"
+                Background="#383838"
+                SnapsToDevicePixels="True" IsHitTestVisible="False" />
         <!-- コントロールへ文字サイズを直接指定し、Fluentテーマの既定スタイルを維持する。 -->
         <!-- 同期モードで幅が半分になっても、操作と保存先を折り返して表示する。 -->
-        <WrapPanel x:Name="MainToolbar" Margin="0,0,0,4">
+        <WrapPanel x:Name="MainToolbar" Margin="{x:Static local:ViewerSettings.MainToolbarMargin}">
             <Button x:Name="SaveImageButton" Content="Save" IsEnabled="False"
                     MinWidth="0"
                     Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"

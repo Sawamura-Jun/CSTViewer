@@ -12,16 +12,18 @@ namespace CSTViewer.Tests;
 public class FileNavigationTests
 {
     [Fact]
-    public void DirectoryList_UsesCaseInsensitiveFilenameOrderAndOnlyTopLevelTiffs()
+    public void DirectoryList_UsesCaseInsensitiveFilenameOrderAndOnlyTopLevelSupportedImages()
     {
         string directory = CreateDirectory();
         try
         {
-            foreach (string name in new[] { "b.TIFF", "A.tif", "10.tif", "2.tiff", "notes.txt", "image.png" })
+            string[] names = ["10.tif", "2.tiff", "A.tif", "b.TIFF", "c.PNG", "d.jpg", "e.JPEG", "f.bmp", "g.GIF"];
+            foreach (string name in names.Concat(["notes.txt", "image.webp"]))
                 File.WriteAllBytes(Path.Combine(directory, name), []);
             Directory.CreateDirectory(Path.Combine(directory, "folder.tif"));
             string child = Directory.CreateDirectory(Path.Combine(directory, "child")).FullName;
             File.WriteAllBytes(Path.Combine(child, "11.tif"), []);
+            File.WriteAllBytes(Path.Combine(child, "12.png"), []);
 
             // 数値の自然順ではなく、Python版と同じ10→2→A→bの名前順で移動する。
             var images = DirectoryImageList.Create(Path.Combine(directory, "2.TIFF"));
@@ -29,6 +31,15 @@ public class FileNavigationTests
             Assert.Equal(Path.Combine(directory, "A.tif"), images.GetNeighbor(1));
             images = DirectoryImageList.Create(Path.Combine(directory, "A.tif"));
             Assert.Equal(Path.Combine(directory, "b.TIFF"), images.GetNeighbor(1));
+            // 拡張子の大文字・小文字や形式を問わず、同じ一覧を前後に移動できる。
+            for (int index = 0; index < names.Length; index++)
+            {
+                images = DirectoryImageList.Create(Path.Combine(directory, names[index]));
+                Assert.Equal(index > 0 ? Path.Combine(directory, names[index - 1]) : null, images.GetNeighbor(-1));
+                Assert.Equal(index + 1 < names.Length ? Path.Combine(directory, names[index + 1]) : null, images.GetNeighbor(1));
+            }
+            Assert.Null(DirectoryImageList.Create(Path.Combine(directory, "notes.txt")).GetNeighbor(-1));
+            Assert.Null(DirectoryImageList.Create(Path.Combine(directory, "image.webp")).GetNeighbor(-1));
         }
         finally { Directory.Delete(directory, true); }
     }
@@ -122,6 +133,51 @@ public class FileNavigationTests
     }
 
     [Fact]
+    public Task ButtonsAndShortcuts_NavigateAcrossAllSupportedFormats()
+    {
+        return RunOnStaAsync(async () =>
+        {
+            string directory = CreateDirectory();
+            var window = CreateWindow();
+            try
+            {
+                string[] names = ["01.tif", "02.PNG", "03.jpg", "04.JPEG", "05.bmp", "06.GIF", "07.tiff"];
+                foreach (string name in names) SaveImage(directory, name, 99, name == names[0] ? 2 : 1);
+                window.Show();
+                await window.OpenImageAsync(Path.Combine(directory, names[0]));
+                var previous = Button(window, "PreviousFileButton");
+                var next = Button(window, "NextFileButton");
+                await WaitForAsync(() => next.IsEnabled);
+                Button(window, "NextPageButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                Assert.Equal("2 / 2", PageText(window));
+
+                // 実際の画像を混在させ、ボタンとキーの両方で形式をまたいだ切り替えを検証する。
+                for (int index = 1; index < names.Length; index++)
+                {
+                    if (index % 2 == 1) next.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    else Assert.True(RaiseKey(window, Key.N).Handled);
+                    string expected = names[index];
+                    await WaitForAsync(() => window.Title.StartsWith(expected) && previous.IsEnabled);
+                    Assert.Equal("1 / 1", PageText(window));
+                    Assert.Equal(index + 1 < names.Length, next.IsEnabled);
+                    Assert.False(Button(window, "PreviousPageButton").IsEnabled);
+                    Assert.False(Button(window, "NextPageButton").IsEnabled);
+                }
+                for (int index = names.Length - 2; index >= 0; index--)
+                {
+                    if (index % 2 == 0) previous.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    else Assert.True(RaiseKey(window, Key.B).Handled);
+                    string expected = names[index];
+                    await WaitForAsync(() => window.Title.StartsWith(expected) && next.IsEnabled);
+                    Assert.Equal(index == 0 ? "1 / 2" : "1 / 1", PageText(window));
+                    Assert.Equal(index > 0, previous.IsEnabled);
+                }
+            }
+            finally { window.Close(); Directory.Delete(directory, true); }
+        });
+    }
+
+    [Fact]
     public Task FileChange_DoubleExecutionIsIgnoredAndOpeningAnotherFolderRebuildsNavigation()
     {
         return RunOnStaAsync(async () =>
@@ -165,10 +221,11 @@ public class FileNavigationTests
                 encoder.Frames.Add(BitmapFrame.Create(PreviewLoadingTests.CreateBitmap(80, 60, 99)));
                 using (var stream = File.Create(png)) encoder.Save(stream);
                 await window.OpenImageAsync(png);
-                Assert.False(previous.IsEnabled);
+                await WaitForAsync(() => previous.IsEnabled);
                 Assert.False(next.IsEnabled);
                 await window.ChangeFileAsync(-1);
-                Assert.StartsWith("image.png", window.Title);
+                Assert.StartsWith("03.tif", window.Title);
+                AssertPixel(window, 220);
             }
             finally
             {
@@ -242,8 +299,10 @@ public class FileNavigationTests
         });
     }
 
-    [Fact]
-    public Task SameFolder_KeepsSnapshotUntilF5RefreshWithoutChangingDisplayedPage()
+    [Theory]
+    [InlineData(".tif", 2)]
+    [InlineData(".png", 1)]
+    public Task SameFolder_KeepsSnapshotUntilF5RefreshWithoutChangingDisplayedPage(string extension, int pages)
     {
         return RunOnStaAsync(async () =>
         {
@@ -252,21 +311,24 @@ public class FileNavigationTests
             try
             {
                 string first = SaveImage(directory, "01.tif", 31);
-                SaveImage(directory, "02.tif", 179, 2);
+                string middleName = "02" + extension;
+                SaveImage(directory, middleName, 179, pages);
                 window.Show();
                 await window.OpenImageAsync(first);
                 var next = Button(window, "NextFileButton");
                 var previous = Button(window, "PreviousFileButton");
                 await WaitForAsync(() => next.IsEnabled);
-                SaveImage(directory, "03.tif", 220);
+                SaveImage(directory, "03.bmp", 220);
 
                 // 一覧取得後に追加したファイルは、同じフォルダーを移動しても未反映のまま。
                 await window.ChangeFileAsync(1);
-                Assert.StartsWith("02.tif", window.Title);
+                Assert.StartsWith(middleName, window.Title);
                 Assert.False(next.IsEnabled);
                 Assert.True(previous.IsEnabled);
-                Button(window, "NextPageButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-                Assert.Equal("2 / 2", PageText(window));
+                if (pages > 1)
+                    Button(window, "NextPageButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                string expectedPage = $"{pages} / {pages}";
+                Assert.Equal(expectedPage, PageText(window));
                 var image = (Image)window.FindName("DisplayedImage");
                 var source = image.Source;
                 string title = window.Title;
@@ -275,7 +337,7 @@ public class FileNavigationTests
                 await WaitForAsync(() => next.IsEnabled);
                 Assert.Same(source, image.Source);
                 Assert.Equal(title, window.Title);
-                Assert.Equal("2 / 2", PageText(window));
+                Assert.Equal(expectedPage, PageText(window));
 
                 // 削除も自動再列挙せず、F5で明示的に反映する。
                 File.Delete(first);
@@ -284,7 +346,7 @@ public class FileNavigationTests
                 await WaitForAsync(() => !previous.IsEnabled && next.IsEnabled);
                 Assert.True(next.IsEnabled);
                 Assert.Equal(title, window.Title);
-                Assert.Equal("2 / 2", PageText(window));
+                Assert.Equal(expectedPage, PageText(window));
                 AssertPixel(window, 179);
             }
             finally
@@ -377,7 +439,15 @@ public class FileNavigationTests
     private static string SaveImage(string directory, string name, byte value, int pages = 1)
     {
         string path = Path.Combine(directory, name);
-        var encoder = new TiffBitmapEncoder { Compression = TiffCompressOption.Zip };
+        BitmapEncoder encoder = Path.GetExtension(name).ToLowerInvariant() switch
+        {
+            ".tif" or ".tiff" => new TiffBitmapEncoder { Compression = TiffCompressOption.Zip },
+            ".png" => new PngBitmapEncoder(),
+            ".jpg" or ".jpeg" => new JpegBitmapEncoder(),
+            ".bmp" => new BmpBitmapEncoder(),
+            ".gif" => new GifBitmapEncoder(),
+            _ => throw new ArgumentException("Unsupported test image extension.", nameof(name))
+        };
         for (int index = 0; index < pages; index++)
             encoder.Frames.Add(BitmapFrame.Create(PreviewLoadingTests.CreateBitmap(80, 60, value)));
         using var stream = File.Create(path);

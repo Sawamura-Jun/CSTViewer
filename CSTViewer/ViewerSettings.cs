@@ -6,7 +6,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.1";
+    public const string ApplicationTitle = "CSTViewer v1.0.2";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -28,8 +28,11 @@ public static class ViewerSettings
     public const double CtrlWheelWindowScaleFactor = 1.12;
     // WPFの文字サイズはDIP単位のため、9pt × 96 / 72 = 12を指定する。
     public const double UiFontSize = 12;
+    public const double TitleBarSeparatorHeight = 1;
     public const double ToolbarButtonHeight = 24;
     public const int DesktopSaveBufferSize = 128 * 1024;
+    // 上下の余白を揃えるため2DIP上へ移し、余白の合計は従来の4DIPに保つ。
+    public static readonly Thickness MainToolbarMargin = new(0, -2, 0, 6);
     public static readonly Thickness ToolbarButtonPadding = new(10, 1, 10, 1);
     public static readonly Thickness ToolbarButtonMargin = new(0, 0, 4, 4);
     public static readonly Thickness ToolbarTextBoxPadding = new(6, 1, 6, 1);

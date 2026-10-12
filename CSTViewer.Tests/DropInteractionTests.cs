@@ -40,11 +40,11 @@ public class DropInteractionTests
                 await Task.Delay(ViewerSettings.DetailLoadDelayMilliseconds + 100);
                 // 全体表示の解像度が足りていれば、余分な詳細デコードを開始しない。
                 Assert.Same(firstPreview, image.Source);
-                Assert.Equal($"{Path.GetFileName(path)} — Page 1 / 2 — {2000:N0} × {1000:N0} px — CSTViewer v1.0.0", window.Title);
+                Assert.Equal($"{Path.GetFileName(path)} — Page 1 / 2 — {2000:N0} × {1000:N0} px — {ViewerSettings.ApplicationTitle}", window.Title);
                 var next = (Button)window.FindName("NextPageButton");
                 Assert.True(next.IsEnabled);
                 next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Assert.Equal($"{Path.GetFileName(path)} — Page 2 / 2 — {600:N0} × {1200:N0} px — CSTViewer v1.0.0", window.Title);
+                Assert.Equal($"{Path.GetFileName(path)} — Page 2 / 2 — {600:N0} × {1200:N0} px — {ViewerSettings.ApplicationTitle}", window.Title);
                 Assert.Equal(600, image.Width);
                 Assert.Equal(1200, image.Height);
                 Assert.False(next.IsEnabled);
@@ -468,7 +468,7 @@ public class DropInteractionTests
                 await loading;
                 Assert.True(oldSession.Token.IsCancellationRequested);
                 Assert.Equal(80, image.Width);
-                Assert.Equal($"{Path.GetFileName(replacement)} — Page 1 / 1 — 80 × 60 px — CSTViewer v1.0.0", window.Title);
+                Assert.Equal($"{Path.GetFileName(replacement)} — Page 1 / 1 — 80 × 60 px — {ViewerSettings.ApplicationTitle}", window.Title);
                 Assert.False(((Button)window.FindName("NextPageButton")).IsEnabled);
             }
             finally

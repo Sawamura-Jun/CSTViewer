@@ -23,6 +23,7 @@ CSTViewer is a fast image viewer for Windows 11, built with C# and .NET 10 (WPF)
 - View multipage TIFFs, including BigTIFF, plus PNG, JPEG, BMP, and GIF (first frame).
 - Load previews quickly, preload TIFF pages, and show more detail when zooming.
 - Open images by drag and drop, file dialog, or command-line arguments.
+- Navigate all supported image formats in the same folder with **PrevFile** / **NextFile** (B / N).
 - Compare two windows side by side with synchronized zoom, pan, and navigation.
 - Generate image diffs with additions in red and deletions in blue.
 - Select, save, and copy image regions to the clipboard.
@@ -49,7 +50,7 @@ dotnet run --project .\CSTViewer\CSTViewer.csproj -- "C:\images\sample.tif"
 | Zoom / pan | Mouse wheel / left drag |
 | Fit image / trim window margins | F |
 | Previous / next TIFF page | Page Up / Page Down |
-| Previous / next TIFF file in the folder | B / N |
+| Previous / next supported image file in the folder | B / N |
 | New window / toggle synchronization | Ctrl+Shift+N / S |
 | Generate a diff (current window is the new image) | D |
 | Select a region / save and copy it | Right drag / click inside the selection |
