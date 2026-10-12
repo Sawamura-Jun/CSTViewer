@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CSTViewer.csproj" />
+  <Project Path="../CSTViewer.Tests/CSTViewer.Tests.csproj" />
+</Solution>

@@ -1,0 +1,47 @@
+# 公開対象：CSTViewer/、CSTViewer.Tests/（以下の除外対象を除く）
+
+# 非公開対象
+/Release/
+AGENTS.md
+/.agents/
+/.codex/
+/python/
+/tools/
+/resources/
+/test/
+/tests/
+/pytest/
+/pytests/
+
+# ビルド・テスト生成物
+[Bb]in/
+[Oo]bj/
+*.pdb
+*.binlog
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# IDEの個人設定
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ローカル設定・作業データ・ログ
+.env
+.env.*
+appsettings.*.json
+*.ini
+*.csv
+*.log
+*.jsonl
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+Desktop.ini
