@@ -25,7 +25,8 @@ internal sealed class DirectoryImageListCache : IDisposable
             Clear();
             _directory = directory;
         }
-        if (!ImageLoader.IsTiff(currentPath)) return Task.FromResult(DirectoryImageList.Empty);
+        if (!ViewerSettings.SupportedImageExtensions.Contains(Path.GetExtension(currentPath)))
+            return Task.FromResult(DirectoryImageList.Empty);
         if (_images is null)
         {
             _cancellation = new CancellationTokenSource();

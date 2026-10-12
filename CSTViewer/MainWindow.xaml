@@ -118,7 +118,7 @@
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="PreviousFileButton_Click">
                 <Button.ToolTip>
-                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Previous TIFF file in the same folder (B)" />
+                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Previous image file in the same folder (B)" />
                 </Button.ToolTip>
             </Button>
             <Button x:Name="NextFileButton" Content="NextFile(N)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
@@ -128,7 +128,7 @@
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="NextFileButton_Click">
                 <Button.ToolTip>
-                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Next TIFF file in the same folder (N)" />
+                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Next image file in the same folder (N)" />
                 </Button.ToolTip>
             </Button>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">

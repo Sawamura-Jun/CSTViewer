@@ -337,7 +337,8 @@ public partial class MainWindow : Window
     internal async Task RefreshFileListAsync()
     {
         if (_isClosed || _isLoading || _isChangingPage || _isCropBusy || IsDiffBusy || IsSaveBusy || _directoryImageCache.IsLoading
-            || _session is not { } session || !ImageLoader.IsTiff(session.Path)) return;
+            || _session is not { } session
+            || !ViewerSettings.SupportedImageExtensions.Contains(Path.GetExtension(session.Path))) return;
         await UpdateFileNavigationAsync(session, refresh: true);
     }
 

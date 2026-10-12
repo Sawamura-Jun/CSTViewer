@@ -2,7 +2,7 @@ using System.IO;
 
 namespace CSTViewer;
 
-/// <summary>同じフォルダーにあるTIFFを、ファイル名順に移動するための一覧。</summary>
+/// <summary>同じフォルダーにある対応画像を、ファイル名順に移動するための一覧。</summary>
 internal sealed class DirectoryImageList
 {
     public static DirectoryImageList Empty { get; } = new([], new(StringComparer.OrdinalIgnoreCase), -1);
@@ -19,8 +19,8 @@ internal sealed class DirectoryImageList
 
     public static DirectoryImageList Create(string currentPath, CancellationToken cancellationToken = default)
     {
-        // Python版と同じく、ファイル移動の対象はTIFFだけにする。
-        if (!ImageLoader.IsTiff(currentPath)) return Empty;
+        // 画像を開くときと同じ設定を使い、対応する全形式を移動対象にする。
+        if (!ViewerSettings.SupportedImageExtensions.Contains(Path.GetExtension(currentPath))) return Empty;
         try
         {
             string fullPath = Path.GetFullPath(currentPath);
@@ -30,7 +30,7 @@ internal sealed class DirectoryImageList
             foreach (string path in Directory.EnumerateFiles(directory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (ImageLoader.IsTiff(path)) paths.Add(path);
+                if (ViewerSettings.SupportedImageExtensions.Contains(Path.GetExtension(path))) paths.Add(path);
             }
             cancellationToken.ThrowIfCancellationRequested();
             // Python版の名前順に合わせ、数値順ではなく小文字にした名前を比較する。
