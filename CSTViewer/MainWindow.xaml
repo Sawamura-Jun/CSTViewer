@@ -16,6 +16,15 @@
         PreviewDragOver="Window_PreviewDragOver"
         PreviewDragLeave="Window_PreviewDragLeave"
         PreviewDrop="Window_PreviewDrop" PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <!-- Fluentテーマの形状と状態表示を保ち、ホバー時の背景だけを少し明るくする。 -->
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver"
+                         Color="{x:Static local:ViewerSettings.ToolbarButtonHoverBackground}" />
+        <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver"
+                         Color="{x:Static local:ViewerSettings.ToolbarButtonHoverBackground}" />
+        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver"
+                         Color="{x:Static local:ViewerSettings.ToolbarCheckedButtonHoverBackground}" />
+    </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

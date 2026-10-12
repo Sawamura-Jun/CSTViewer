@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace CSTViewer;
 
@@ -30,6 +31,9 @@ public static class ViewerSettings
     public const double UiFontSize = 12;
     public const double TitleBarSeparatorHeight = 1;
     public const double ToolbarButtonHeight = 24;
+    // x:StaticでColorプロパティに渡すため、文字列ではなくColor型で保持する。
+    public static readonly Color ToolbarButtonHoverBackground = Color.FromRgb(61, 61, 61);
+    public static readonly Color ToolbarCheckedButtonHoverBackground = Color.FromRgb(120, 213, 255);
     public const int DesktopSaveBufferSize = 128 * 1024;
     // 上下の余白を揃えるため2DIP上へ移し、余白の合計は従来の4DIPに保つ。
     public static readonly Thickness MainToolbarMargin = new(0, -2, 0, 6);
