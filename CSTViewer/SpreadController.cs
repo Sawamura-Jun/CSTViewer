@@ -39,10 +39,21 @@ internal sealed class SpreadController
     public void Toggle(MainWindow source)
     {
         if (IsChangingImages(source) || source.IsSpreadBusy) return;
-        if (Partner(source) is not null)
+        if (Partner(source) is { } partner)
         {
+            if (!_enabled && partner.IsSpreadBusy)
+            {
+                source.ShowSpreadMessage("Wait for the other window to finish loading or saving before enabling sync mode");
+                source.UpdateSpreadControls();
+                return;
+            }
             SetEnabled(!_enabled);
-            if (_enabled) SynchronizeNow(source);
+            if (_enabled)
+            {
+                // 同じペアを再び有効にした場合も、現在のモニターへ左右配置し直す。
+                ArrangePair(source);
+                SynchronizeNow(source);
+            }
             ShowMessage(_enabled ? "Sync mode enabled" : "Sync mode disabled");
             BringToFront(source);
             return;
@@ -72,9 +83,17 @@ internal sealed class SpreadController
             .ThenBy(w => _windows.IndexOf(w)).ToArray();
         _left = selected[0];
         _right = selected[1];
+        SetEnabled(true);
+        ArrangePair(source);
+        ShowMessage("Sync mode enabled");
+        BringToFront(source);
+    }
+
+    private void ArrangePair(MainWindow source)
+    {
+        if (_left is null || _right is null) return;
         Rect area = WindowScreen.WorkArea(source);
         double halfWidth = Math.Floor(area.Width / 2);
-        SetEnabled(true);
         _applyingView = true;
         try
         {
@@ -82,8 +101,6 @@ internal sealed class SpreadController
             _right.ArrangeSpread(new Rect(area.Left + halfWidth, area.Top, area.Width - halfWidth, area.Height));
         }
         finally { _applyingView = false; }
-        ShowMessage("Sync mode enabled");
-        BringToFront(source);
     }
 
     private void BringToFront(MainWindow source)

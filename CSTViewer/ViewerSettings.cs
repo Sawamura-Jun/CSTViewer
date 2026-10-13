@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.2";
+    public const string ApplicationTitle = "CSTViewer v1.0.3";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -67,6 +67,8 @@ public static class ViewerSettings
     public const Key FitShortcutKey = Key.F;
     public const Key CloseShortcutKey = Key.C;
     public const double SpreadMinimumWindowWidth = 480;
+    // DPI変換による最大1物理ピクセル程度の丸めで、復元情報を破棄しない許容差（DIP）。
+    public const double SpreadSizeTolerance = 1;
     public const int SpreadSyncIntervalMilliseconds = 16;
     public const double SpreadSyncZoomRatioEpsilon = 1e-4;
     public const int StartupRequestTimeoutMilliseconds = StartupSettings.RequestTimeoutMilliseconds;

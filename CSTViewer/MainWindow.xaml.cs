@@ -940,6 +940,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isClosed = true;
+        RemoveSpreadWindowHook();
         _saveCancellation?.Cancel();
         _diffCancellation?.Cancel();
         _spreadController.Unregister(this);

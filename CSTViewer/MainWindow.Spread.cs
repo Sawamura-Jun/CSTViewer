@@ -31,18 +31,33 @@ public partial class MainWindow
 
     internal void ArrangeSpread(Rect bounds)
     {
-        _minimumSizeBeforeSpread ??= new Size(MinWidth, MinHeight);
-        MinWidth = Math.Min(ViewerSettings.SpreadMinimumWindowWidth, bounds.Width);
-        MinHeight = Math.Min(MinHeight, bounds.Height);
-        WindowState = WindowState.Normal;
-        WindowStartupLocation = WindowStartupLocation.Manual;
-        ApplyWindowBounds(bounds);
-        UpdateLayout();
-        // 左右への配置時はウィンドウ寸法を保ち、画像だけを全体表示にする。
-        FitImageLocally(resizeWindow: false);
+        _applyingSpreadWindowBounds = true;
+        try
+        {
+            // 最大化中も、配置前の通常表示サイズを復元先として保存する。
+            Size normalSize = WindowState != WindowState.Normal && !RestoreBounds.IsEmpty
+                ? RestoreBounds.Size : new Size(ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height);
+            _spreadWindowPlacement.Capture(normalSize, bounds.Size);
+            _minimumSizeBeforeSpread ??= new Size(MinWidth, MinHeight);
+            MinWidth = Math.Min(ViewerSettings.SpreadMinimumWindowWidth, bounds.Width);
+            MinHeight = Math.Min(MinHeight, bounds.Height);
+            WindowState = WindowState.Normal;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            ApplyWindowBounds(bounds);
+            UpdateLayout();
+            // 左右への配置時はウィンドウ寸法を保ち、画像だけを全体表示にする。
+            FitImageLocally(resizeWindow: false);
+        }
+        finally { _applyingSpreadWindowBounds = false; }
     }
 
     internal void RestoreSpreadMinimumSize()
+    {
+        _spreadWindowPlacement.Cancel();
+        RestoreSpreadMinimumConstraints();
+    }
+
+    private void RestoreSpreadMinimumConstraints()
     {
         if (_minimumSizeBeforeSpread is not { } minimum) return;
         MinWidth = minimum.Width;
