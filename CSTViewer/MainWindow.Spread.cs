@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 
 namespace CSTViewer;
 
@@ -37,14 +38,26 @@ public partial class MainWindow
             // 最大化中も、配置前の通常表示サイズを復元先として保存する。
             Size normalSize = WindowState != WindowState.Normal && !RestoreBounds.IsEmpty
                 ? RestoreBounds.Size : new Size(ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height);
-            _spreadWindowPlacement.Capture(normalSize, bounds.Size);
+            // boundsは表示枠の物理ピクセル。WPFの最小寸法だけDIPへ変換する。
+            Rect logicalBounds = WindowScreen.FromPixels(this, bounds);
             _minimumSizeBeforeSpread ??= new Size(MinWidth, MinHeight);
-            MinWidth = Math.Min(ViewerSettings.SpreadMinimumWindowWidth, bounds.Width);
-            MinHeight = Math.Min(MinHeight, bounds.Height);
+            MinWidth = Math.Min(ViewerSettings.SpreadMinimumWindowWidth, logicalBounds.Width);
+            MinHeight = Math.Min(MinHeight, logicalBounds.Height);
             WindowState = WindowState.Normal;
             WindowStartupLocation = WindowStartupLocation.Manual;
-            ApplyWindowBounds(bounds);
+            var handle = new WindowInteropHelper(this).Handle;
+            SetSpreadWindowPos(handle, IntPtr.Zero, (int)bounds.Left, (int)bounds.Top,
+                (int)bounds.Width, (int)bounds.Height, SwpNoZOrder | SwpNoActivate);
             UpdateLayout();
+            // 通常表示へ戻して移動先のDPIを確定してから、透明な枠を補正する。
+            logicalBounds = WindowScreen.FromPixels(this, bounds);
+            MinWidth = Math.Min(ViewerSettings.SpreadMinimumWindowWidth, logicalBounds.Width);
+            MinHeight = Math.Min(_minimumSizeBeforeSpread.Value.Height, logicalBounds.Height);
+            Rect outer = WindowScreen.OuterBoundsForVisibleFrame(this, bounds);
+            SetSpreadWindowPos(handle, IntPtr.Zero,
+                (int)outer.Left, (int)outer.Top, (int)outer.Width, (int)outer.Height, SwpNoZOrder | SwpNoActivate);
+            UpdateLayout();
+            _spreadWindowPlacement.Capture(normalSize, new Size(ActualWidth, ActualHeight));
             // 左右への配置時はウィンドウ寸法を保ち、画像だけを全体表示にする。
             FitImageLocally(resizeWindow: false);
         }

@@ -92,7 +92,8 @@ internal sealed class SpreadController
     private void ArrangePair(MainWindow source)
     {
         if (_left is null || _right is null) return;
-        Rect area = WindowScreen.WorkArea(source);
+        // 境界を物理ピクセルで共有し、拡大率や奇数幅による丸めの隙間を防ぐ。
+        Rect area = WindowScreen.WorkAreaPixels(source);
         double halfWidth = Math.Floor(area.Width / 2);
         _applyingView = true;
         try

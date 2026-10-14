@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.3";
+    public const string ApplicationTitle = "CSTViewer v1.0.4";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";

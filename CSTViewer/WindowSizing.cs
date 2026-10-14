@@ -5,6 +5,15 @@ namespace CSTViewer;
 /// <summary>画像の縦横比と画面の作業領域から、ウィンドウの寸法と位置を計算する。</summary>
 internal static class WindowSizing
 {
+    public static Rect OuterBoundsForVisibleFrame(Rect visibleBounds, Rect outerBounds, Rect frameBounds)
+    {
+        // 見えない枠の分だけ外側へ広げ、表示枠を指定領域の四辺に合わせる。
+        return new Rect(new Point(visibleBounds.Left - (frameBounds.Left - outerBounds.Left),
+            visibleBounds.Top - (frameBounds.Top - outerBounds.Top)),
+            new Point(visibleBounds.Right + (outerBounds.Right - frameBounds.Right),
+                visibleBounds.Bottom + (outerBounds.Bottom - frameBounds.Bottom)));
+    }
+
     public static Size StartupViewportSize(Size imageSize)
     {
         return imageSize.Width >= imageSize.Height

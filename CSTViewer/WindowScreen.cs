@@ -35,20 +35,40 @@ internal static class WindowScreen
 
     public static Rect WorkArea(Window window)
     {
+        return FromPixels(window, WorkAreaPixels(window));
+    }
+
+    public static Rect FromPixels(Window window, Rect bounds)
+    {
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        bounds.Transform(HwndSource.FromHwnd(handle).CompositionTarget.TransformFromDevice);
+        return bounds;
+    }
+
+    public static Rect WorkAreaPixels(Window window)
+    {
         var handle = new WindowInteropHelper(window).EnsureHandle();
         // 同期モードの対象選択と同じ、ウィンドウの中心があるモニターを使う。
         var monitor = MonitorAtCenter(window);
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (!GetMonitorInfo(monitor, ref info)) return SystemParameters.WorkArea;
-        // Win32の物理ピクセルをWPFのDPIに依存しない座標へ変換する。
-        var transform = HwndSource.FromHwnd(handle).CompositionTarget.TransformFromDevice;
-        var area = new Rect(info.Work.Left, info.Work.Top,
-            info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
-        area.Transform(transform);
-        return area;
+        if (GetMonitorInfo(monitor, ref info)) return info.Work.ToRect();
+        var fallback = SystemParameters.WorkArea;
+        fallback.Transform(HwndSource.FromHwnd(handle).CompositionTarget.TransformToDevice);
+        return fallback;
+    }
+
+    public static Rect OuterBoundsForVisibleFrame(Window window, Rect visibleBounds)
+    {
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        // DWMの表示枠は透明なリサイズ領域を含まない。両方とも物理ピクセルで比較する。
+        if (!GetWindowRect(handle, out var outer)
+            || DwmGetWindowAttribute(handle, DwmExtendedFrameBounds, out var frame, Marshal.SizeOf<NativeRect>()) < 0
+            || frame.Right <= frame.Left || frame.Bottom <= frame.Top) return visibleBounds;
+        return WindowSizing.OuterBoundsForVisibleFrame(visibleBounds, outer.ToRect(), frame.ToRect());
     }
 
     private const uint MonitorDefaultToNearest = 2;
+    private const uint DwmExtendedFrameBounds = 9;
 
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct NativePoint(int x, int y)
@@ -61,6 +81,7 @@ internal static class WindowScreen
     private struct NativeRect
     {
         public int Left, Top, Right, Bottom;
+        public readonly Rect ToRect() => new(Left, Top, Right - Left, Bottom - Top);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -79,6 +100,9 @@ internal static class WindowScreen
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(IntPtr window, out NativeRect rectangle);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr window, uint attribute, out NativeRect rectangle, int size);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromPoint(NativePoint point, uint flags);
