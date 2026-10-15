@@ -38,6 +38,12 @@ internal static class WindowScreen
         return FromPixels(window, WorkAreaPixels(window));
     }
 
+    public static Rect MonitorBounds(Window window)
+    {
+        // 起動サイズの割合には、タスクバーを含むモニター全体の寸法を使う。
+        return FromPixels(window, BoundsPixels(window, workArea: false));
+    }
+
     public static Rect FromPixels(Window window, Rect bounds)
     {
         var handle = new WindowInteropHelper(window).EnsureHandle();
@@ -47,12 +53,18 @@ internal static class WindowScreen
 
     public static Rect WorkAreaPixels(Window window)
     {
+        return BoundsPixels(window, workArea: true);
+    }
+
+    private static Rect BoundsPixels(Window window, bool workArea)
+    {
         var handle = new WindowInteropHelper(window).EnsureHandle();
         // 同期モードの対象選択と同じ、ウィンドウの中心があるモニターを使う。
         var monitor = MonitorAtCenter(window);
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (GetMonitorInfo(monitor, ref info)) return info.Work.ToRect();
-        var fallback = SystemParameters.WorkArea;
+        if (GetMonitorInfo(monitor, ref info)) return workArea ? info.Work.ToRect() : info.Monitor.ToRect();
+        var fallback = workArea ? SystemParameters.WorkArea
+            : new Rect(0, 0, SystemParameters.PrimaryScreenWidth, SystemParameters.PrimaryScreenHeight);
         fallback.Transform(HwndSource.FromHwnd(handle).CompositionTarget.TransformToDevice);
         return fallback;
     }

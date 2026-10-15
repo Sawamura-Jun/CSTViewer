@@ -69,12 +69,14 @@ public partial class MainWindow : Window
 
         // HWNDだけを先に作り、非表示のまま枠・ツールバーを含む寸法を確定させる。
         Size chrome = MeasureWindowChrome();
-        Rect bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), WindowScreen.WorkArea(this));
+        Rect monitorBounds = WindowScreen.MonitorBounds(this);
+        Rect workArea = WindowScreen.WorkArea(this);
+        Rect bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), monitorBounds, workArea);
         WindowStartupLocation = WindowStartupLocation.Manual;
         ApplyWindowBounds(bounds);
         // 幅が狭い時はツールバーが折り返すので、その高さを初期サイズにも反映する。
         chrome = MeasureWindowChrome();
-        bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), WindowScreen.WorkArea(this));
+        bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), monitorBounds, workArea);
         ApplyWindowBounds(bounds);
     }
 

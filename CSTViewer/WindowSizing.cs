@@ -14,22 +14,28 @@ internal static class WindowSizing
                 visibleBounds.Bottom + (outerBounds.Bottom - frameBounds.Bottom)));
     }
 
-    public static Size StartupViewportSize(Size imageSize)
+    public static Rect StartupBounds(Size imageSize, Size chromeSize, Size minimumSize,
+        Rect monitorBounds, Rect workArea)
     {
-        return imageSize.Width >= imageSize.Height
-            ? new Size(ViewerSettings.StartupLandscapeViewportWidth,
-                Math.Max(1, Math.Round(imageSize.Height * ViewerSettings.StartupLandscapeViewportWidth / imageSize.Width)))
-            : new Size(Math.Max(1, Math.Round(imageSize.Width * ViewerSettings.StartupPortraitViewportHeight / imageSize.Height)),
-                ViewerSettings.StartupPortraitViewportHeight);
-    }
-
-    public static Rect StartupBounds(Size imageSize, Size chromeSize, Size minimumSize, Rect workArea)
-    {
-        Size viewport = StartupViewportSize(imageSize);
-        double width = Math.Clamp(viewport.Width + chromeSize.Width, minimumSize.Width,
-            Math.Max(minimumSize.Width, workArea.Width));
-        double height = Math.Clamp(viewport.Height + chromeSize.Height, minimumSize.Height,
-            Math.Max(minimumSize.Height, workArea.Height));
+        double maxWidth = Math.Max(minimumSize.Width, workArea.Width);
+        double maxHeight = Math.Max(minimumSize.Height, workArea.Height);
+        double width, height;
+        // 指定する辺はウィンドウ全体の寸法。反対側は画像表示領域の縦横比から求める。
+        if (imageSize.Width >= imageSize.Height)
+        {
+            width = Math.Clamp(monitorBounds.Width * ViewerSettings.StartupLandscapeWindowWidthRatio,
+                minimumSize.Width, maxWidth);
+            height = Math.Max(1, width - chromeSize.Width) * imageSize.Height / imageSize.Width + chromeSize.Height;
+        }
+        else
+        {
+            height = Math.Clamp(monitorBounds.Height * ViewerSettings.StartupPortraitWindowHeightRatio,
+                minimumSize.Height, maxHeight);
+            width = Math.Max(1, height - chromeSize.Height) * imageSize.Width / imageSize.Height + chromeSize.Width;
+        }
+        // 極端な縦横比でも、既存の最小寸法とタスクバーを除く画面内の制限を守る。
+        width = Math.Clamp(width, minimumSize.Width, maxWidth);
+        height = Math.Clamp(height, minimumSize.Height, maxHeight);
         return CenteredBounds(new Point(workArea.Left + workArea.Width / 2, workArea.Top + workArea.Height / 2),
             new Size(width, height), workArea);
     }

@@ -21,11 +21,9 @@ public static class ViewerSettings
     // 狭い画面ではツールバーと保存先欄を折り返す。同期モードには別の最小幅を使う。
     public const double MinimumWindowWidth = 600;  // 600
     public const double MinimumWindowHeight = 400; // 400
-    public const double StartupLandscapeViewportWidth = 1000; //1000
-    // 縦長画像を指定して起動したときの画像表示領域の高さ（DIP）。
-    // ウィンドウ幅は「この高さ × 画像の幅 / 画像の高さ ＋ 枠・余白」で、最小幅はMinimumWindowWidth（600）。
-    // ウィンドウ高さは「この高さ ＋ タイトルバー・ツールバー・ステータス欄・余白」で、画面の作業領域内に制限する。
-    public const double StartupPortraitViewportHeight = 805;  //805
+    // 起動先モニター全体に対する、枠やツールバーを含むウィンドウ寸法の割合。
+    public const double StartupLandscapeWindowWidthRatio = 2.0 / 3.0;
+    public const double StartupPortraitWindowHeightRatio = 9.0 / 10.0;
     public const double CtrlWheelWindowScaleFactor = 1.12;
     // WPFの文字サイズはDIP単位のため、9pt × 96 / 72 = 12を指定する。
     public const double UiFontSize = 12;
