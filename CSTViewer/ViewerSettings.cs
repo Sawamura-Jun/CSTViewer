@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.4";
+    public const string ApplicationTitle = "CSTViewer v1.0.5";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -15,15 +15,15 @@ public static class ViewerSettings
     public const string TrayMenuForeground = "#E6E6E6";
     public const string TrayMenuHoverBackground = "#3D3D3D";
     public const string TrayMenuBorder = "#454545";
-    // 画像を指定せずに起動したときのウィンドウ全体のサイズ（DIP）。
+    // 初期レイアウトと画像寸法取得失敗時のサイズ（DIP）。画像未指定時の仮想画像の縦横比にも使う。
     public const double WindowWidth = 1000; // 1000
-    public const double WindowHeight = 796;
+    public const double WindowHeight = 708;
     // 狭い画面ではツールバーと保存先欄を折り返す。同期モードには別の最小幅を使う。
     public const double MinimumWindowWidth = 600;  // 600
     public const double MinimumWindowHeight = 400; // 400
     // 起動先モニター全体に対する、枠やツールバーを含むウィンドウ寸法の割合。
     public const double StartupLandscapeWindowWidthRatio = 2.0 / 3.0;
-    public const double StartupPortraitWindowHeightRatio = 9.0 / 10.0;
+    public const double StartupPortraitWindowHeightRatio = 9.3 / 10.0;
     public const double CtrlWheelWindowScaleFactor = 1.12;
     // WPFの文字サイズはDIP単位のため、9pt × 96 / 72 = 12を指定する。
     public const double UiFontSize = 12;

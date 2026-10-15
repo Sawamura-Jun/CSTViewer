@@ -23,6 +23,7 @@ public partial class MainWindow
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
+        ObserveWindowSizeChange(sizeInfo.NewSize);
         if (!_applyingSpreadWindowBounds && WindowState == WindowState.Normal)
             _spreadWindowPlacement.SizeChanged(sizeInfo.NewSize);
     }
@@ -30,6 +31,8 @@ public partial class MainWindow
     protected override void OnStateChanged(EventArgs e)
     {
         base.OnStateChanged(e);
+        if (IsLoaded && !_applyingSpreadWindowBounds && WindowState == WindowState.Maximized)
+            _hasUserResizedWindow = true;
         if (!_applyingSpreadWindowBounds && WindowState == WindowState.Maximized) _spreadWindowPlacement.Cancel();
     }
 
@@ -68,6 +71,7 @@ public partial class MainWindow
                 return new IntPtr(1);
             case WmSizing:
                 // 枠のリサイズはユーザー指定を優先し、以前のサイズへ強制的に戻さない。
+                _hasUserResizedWindow = true;
                 _spreadWindowPlacement.Cancel();
                 _spreadCaptionDrag = false;
                 break;

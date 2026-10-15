@@ -26,6 +26,7 @@ public partial class MainWindow
         Rect area = WindowScreen.WorkArea(this);
         window.Left = area.Left + Math.Max(0, (area.Width - window.Width) / 2);
         window.Top = area.Top + Math.Max(0, (area.Height - window.Height) / 2);
+        window.PrepareEmptyStartup();
         window.Show();
         return window;
     }

@@ -107,6 +107,7 @@ public partial class App : Application
             var window = new MainWindow();
             MainWindow ??= window;
             if (path.Length > 0) await window.PrepareStartupImageAsync(path);
+            else window.PrepareEmptyStartup();
             if (_exiting) { window.Close(); return; }
             window.Show();
             window.Activate();

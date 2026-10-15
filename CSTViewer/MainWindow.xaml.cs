@@ -67,17 +67,7 @@ public partial class MainWindow : Window
         }
         if (_isClosed) return;
 
-        // HWNDだけを先に作り、非表示のまま枠・ツールバーを含む寸法を確定させる。
-        Size chrome = MeasureWindowChrome();
-        Rect monitorBounds = WindowScreen.MonitorBounds(this);
-        Rect workArea = WindowScreen.WorkArea(this);
-        Rect bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), monitorBounds, workArea);
-        WindowStartupLocation = WindowStartupLocation.Manual;
-        ApplyWindowBounds(bounds);
-        // 幅が狭い時はツールバーが折り返すので、その高さを初期サイズにも反映する。
-        chrome = MeasureWindowChrome();
-        bounds = WindowSizing.StartupBounds(imageSize, chrome, new Size(MinWidth, MinHeight), monitorBounds, workArea);
-        ApplyWindowBounds(bounds);
+        ApplyAutomaticImageWindowSize(imageSize);
     }
 
     private Size MeasureWindowChrome()
@@ -265,8 +255,10 @@ public partial class MainWindow : Window
             Math.Max(ViewerSettings.MinimumPreviewDimension, ImageViewportCanvas.ActualHeight * dpi.DpiScaleY));
     }
 
-    private void ShowPage(ImagePage page)
+    private void ShowPage(ImagePage page, bool resizeForOrientationChange = false)
     {
+        bool orientationChanged = resizeForOrientationChange && _currentPage is { } previous
+            && (previous.SourceWidth >= previous.SourceHeight) != (page.SourceWidth >= page.SourceHeight);
         _saveStatus = null;
         StopPanning();
         ClearCropSelection();
@@ -284,6 +276,7 @@ public partial class MainWindow : Window
         DisplayedImage.Width = page.SourceWidth;
         DisplayedImage.Height = page.SourceHeight;
         _viewport.SetImage(new Size(page.SourceWidth, page.SourceHeight));
+        if (orientationChanged) ResizeWindowForPageOrientation(page);
         ApplyViewport();
         Title = $"{Path.GetFileName(_session.Path)} — Page {page.Index + 1} / {page.PageCount}"
             + $" — {page.SourceWidth:N0} × {page.SourceHeight:N0} px — {ViewerSettings.ApplicationTitle}";
@@ -442,7 +435,8 @@ public partial class MainWindow : Window
                 page = await session.LoadPageAsync(index, session.PreviewSize, measurement);
                 session.Previews.Add(page);
             }
-            if (!_isClosed && _session == session && !session.Token.IsCancellationRequested) ShowPage(page);
+            if (!_isClosed && _session == session && !session.Token.IsCancellationRequested)
+                ShowPage(page, resizeForOrientationChange: true);
             WriteMeasurement(measurement, "Completed");
         }
         catch (OperationCanceledException) { WriteMeasurement(measurement, "Cancelled"); }
@@ -642,7 +636,7 @@ public partial class MainWindow : Window
                     Math.Max(0, ActualHeight - ImageViewportCanvas.ActualHeight));
                 Rect bounds = WindowSizing.FitBounds(center, displayedImageSize, viewportSize,
                     chromeSize, new Size(MinWidth, MinHeight), workArea);
-                ApplyWindowBounds(bounds);
+                ApplyWindowBounds(bounds, userRequested: true);
                 UpdateLayout();
             }
         }
@@ -682,7 +676,7 @@ public partial class MainWindow : Window
             Rect bounds = WindowSizing.WheelBounds(new Rect(Left, Top, ActualWidth, ActualHeight),
                 new Size(ImageViewportCanvas.ActualWidth, ImageViewportCanvas.ActualHeight),
                 new Size(MinWidth, MinHeight), WindowScreen.WorkArea(this), delta);
-            ApplyWindowBounds(bounds);
+            ApplyWindowBounds(bounds, userRequested: true);
             return;
         }
         if (!_viewport.HasImage || _isLoading)
@@ -701,8 +695,10 @@ public partial class MainWindow : Window
         ScheduleDetailLoad();
     }
 
-    private void ApplyWindowBounds(Rect bounds)
+    private void ApplyWindowBounds(Rect bounds, bool userRequested = false)
     {
+        // レイアウト通知より先に次のページへ進んでも、ユーザーが決めた寸法を優先する。
+        if (userRequested && (Width != bounds.Width || Height != bounds.Height)) _hasUserResizedWindow = true;
         Width = bounds.Width;
         Height = bounds.Height;
         Left = bounds.Left;
