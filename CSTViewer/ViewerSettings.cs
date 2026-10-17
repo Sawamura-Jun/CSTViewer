@@ -80,17 +80,22 @@ public static class ViewerSettings
     public const double FitWindowPaddingTolerance = 1;
     public const int MinimumPreviewDimension = 512;
     public const int ImageDecodeConcurrency = 1;
-    public const int DetailLoadDelayMilliseconds = 280;
     public const int ZoomInteractionIdleMilliseconds = 220;
     public const int DetailAfterZoomIdleDelayMilliseconds = 40;
+    // 通常の詳細更新とパン終了後の待機には、ズーム関連の2つの待機時間の合計を使う。
+    public const int DetailLoadDelayMilliseconds = ZoomInteractionIdleMilliseconds + DetailAfterZoomIdleDelayMilliseconds;
     public const double DetailOversamplingFactor = 1.8;
+    // true: 表示範囲＋各辺の余白を高精細化する。false: 表示中ページ全体を高精細化する。
+    public static bool UseRegionalDetailLoading { get; set; } = true;
+    // 表示範囲の各辺に100%の余白を読み込み、小さなパンでの再デコードを避ける。
+    public const double DetailRegionMarginRatio = 1.0;
+    public const int DetailCacheRegionLimit = 8;
     // Python版と同じく、縮小率が0.4未満なら1/2、1/4などの画像を選ぶ。
     public const double MipmapMinimumDisplayScale = 0.4;
     public const double BitmapSmoothScaleThreshold = 0.7;
     public const int MipmapCacheBitmapLimit = 64;
     public const long MipmapCacheByteLimit = 64 * 1024 * 1024;
     public const int PreviewCachePageLimit = 64;
-    public const int DetailCachePageLimit = 4;
     public const long PreviewCacheByteLimit = 128 * 1024 * 1024;
     public const long DetailCacheByteLimit = 128 * 1024 * 1024;
     public static readonly bool EnablePerformanceLogging = false;

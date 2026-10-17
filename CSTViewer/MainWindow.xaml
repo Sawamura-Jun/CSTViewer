@@ -182,6 +182,13 @@
                             <MatrixTransform x:Name="ImageTransform" />
                         </Image.RenderTransform>
                     </Image>
+                    <!-- 全体プレビューの上に、元画像の座標に合わせた高精細領域を重ねる。 -->
+                    <Image x:Name="DetailRegionImage" Stretch="Fill" IsHitTestVisible="False"
+                           Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.RenderTransform>
+                            <MatrixTransform x:Name="DetailRegionTransform" />
+                        </Image.RenderTransform>
+                    </Image>
                     <Canvas x:Name="CropSelectionOverlay" IsHitTestVisible="False" Visibility="Collapsed">
                         <Rectangle x:Name="CropRubberBand" Stroke="#60CDFF" Fill="#2060CDFF"
                                    StrokeThickness="{x:Static local:ViewerSettings.CropBorderWidth}"

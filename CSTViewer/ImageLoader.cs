@@ -100,6 +100,69 @@ internal static class ImageLoader
         return new ImagePage(pageIndex, pageCount, source.Width, source.Height, bitmap);
     }
 
+    public static Task<ImageDetailRegion> LoadDetailRegionAsync(string path, int pageIndex,
+        ImageDetailRequest request, ImageLoadMeasurement? measurement = null,
+        CancellationToken cancellationToken = default)
+    {
+        measurement?.StartStage("WorkerQueue");
+        return Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ArgumentOutOfRangeException.ThrowIfNegative(pageIndex);
+            if (!IsTiff(path)) throw new ArgumentException("Detail regions require a TIFF image.", nameof(path));
+            if (!double.IsFinite(request.DecodeScale) || request.DecodeScale <= 0 || request.DecodeScale > 1)
+                throw new ArgumentOutOfRangeException(nameof(request));
+            measurement?.StartStage("FileOpen");
+            if (measurement is not null)
+            {
+                measurement.FileSizeBytes = new FileInfo(path).Length;
+                measurement.PageIndex = pageIndex;
+                measurement.Backend = "NetVips";
+                measurement.RegionX = request.Rectangle.X;
+                measurement.RegionY = request.Rectangle.Y;
+                measurement.RegionWidth = request.Rectangle.Width;
+                measurement.RegionHeight = request.Rectangle.Height;
+            }
+            _ = VipsInitialized.Value;
+            measurement?.StartStage("DecodeAndRead");
+            using var source = VipsImage.Tiffload(path, page: pageIndex, n: 1, autorotate: true,
+                access: Enums.Access.Random, revalidate: true);
+            ValidateCrop(request.Rectangle, source.Width, source.Height);
+            cancellationToken.ThrowIfCancellationRequested();
+            // 元画像を切り抜いてから縮小し、画面外の画素をWPF用Bitmapへ展開しない。
+            using var cropped = source.Crop(request.Rectangle.X, request.Rectangle.Y,
+                request.Rectangle.Width, request.Rectangle.Height);
+            using var resized = request.DecodeScale < 1
+                ? cropped.Resize(request.DecodeScale, kernel: Enums.Kernel.Linear) : cropped.Copy();
+            var bitmap = CreateTiffBitmap(resized, measurement, cancellationToken);
+            int pageCount = source.GetTypeOf("n-pages") != 0 ? (int)source.Get("n-pages") : 1;
+            SetMetadata(measurement, bitmap, source.Width, source.Height, pageCount);
+            measurement?.StartStage("UiDispatch");
+            return new ImageDetailRegion(pageIndex, request.Rectangle, bitmap);
+        }, cancellationToken);
+    }
+
+    public static async Task<ImageDetailRegion> LoadFullDetailAsync(string path, int pageIndex,
+        ImageDetailRequest request, ImageLoadMeasurement? measurement = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!double.IsFinite(request.DecodeScale) || request.DecodeScale <= 0 || request.DecodeScale > 1
+            || request.Rectangle.X != 0 || request.Rectangle.Y != 0
+            || request.Rectangle.Width <= 0 || request.Rectangle.Height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(request));
+        // 全体モードでは従来のSequential読み込みを使い、ページ全体を一度に生成する。
+        var size = new Size(Math.Max(1, request.Rectangle.Width * request.DecodeScale),
+            Math.Max(1, request.Rectangle.Height * request.DecodeScale));
+        var page = await LoadPageAsync(path, pageIndex, size, measurement, cancellationToken);
+        if (measurement is not null)
+        {
+            measurement.RegionX = measurement.RegionY = 0;
+            measurement.RegionWidth = page.SourceWidth;
+            measurement.RegionHeight = page.SourceHeight;
+        }
+        return new ImageDetailRegion(pageIndex, new Int32Rect(0, 0, page.SourceWidth, page.SourceHeight), page.Bitmap);
+    }
+
     public static Task<BitmapSource> LoadCropAsync(string path, int pageIndex, Int32Rect rectangle,
         CancellationToken cancellationToken = default) => Task.Run(() =>
     {
@@ -263,6 +326,7 @@ internal static class ImageLoader
         };
         // libvipsのRGBAを、WPFが扱うBGRAのバンド順へ並べ替える。
         using var ordered = displayImage.Bands == 4 ? RgbaToBgra(displayImage) : displayImage.Copy();
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] pixels = ordered.WriteToMemory<byte>();
         cancellationToken.ThrowIfCancellationRequested();
         measurement?.StartStage("BitmapCreate");

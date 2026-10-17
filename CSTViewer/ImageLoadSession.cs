@@ -8,6 +8,7 @@ internal sealed class ImageLoadSession
 {
     // ファイルを切り替えた直後も含め、重いデコードが重ならないよう全セッションで共有する。
     private static readonly SemaphoreSlim DecodeGate = new(ViewerSettings.ImageDecodeConcurrency);
+    private static readonly ImageDecodeQueue DecodeQueue = new(DecodeGate);
     private readonly CancellationTokenSource _cancellation = new();
     private bool _cancelled;
     public Guid Id { get; } = Guid.NewGuid();
@@ -19,7 +20,7 @@ internal sealed class ImageLoadSession
     public bool IsPreloading { get; set; } = true;
     public string? Error { get; set; }
     public PageImageCache Previews { get; } = new(ViewerSettings.PreviewCachePageLimit, ViewerSettings.PreviewCacheByteLimit);
-    public PageImageCache Details { get; } = new(ViewerSettings.DetailCachePageLimit, ViewerSettings.DetailCacheByteLimit);
+    public ImageDetailRegionCache Details { get; } = new(ViewerSettings.DetailCacheRegionLimit, ViewerSettings.DetailCacheByteLimit);
     public BitmapMipmapCache Mipmaps { get; } = new(ViewerSettings.MipmapCacheBitmapLimit, ViewerSettings.MipmapCacheByteLimit);
 
     public ImageLoadSession(string path, Size previewSize)
@@ -29,17 +30,17 @@ internal sealed class ImageLoadSession
         Token = _cancellation.Token;
     }
 
-    public async Task<ImagePage> LoadPageAsync(int index, Size size, ImageLoadMeasurement? measurement)
+    public async Task<ImagePage> LoadPageAsync(int index, Size size, ImageLoadMeasurement? measurement, bool isPreload = false)
     {
         measurement?.StartStage("DecodeQueue");
-        await DecodeGate.WaitAsync(Token);
+        await DecodeQueue.WaitAsync(Token, isPreload);
         try
         {
             return await ImageLoader.LoadPageAsync(Path, index, size, measurement, Token);
         }
         finally
         {
-            DecodeGate.Release();
+            DecodeQueue.Release();
         }
     }
 
@@ -52,24 +53,40 @@ internal sealed class ImageLoadSession
         _cancellation.Dispose();
     }
 
+    public async Task<ImageDetailRegion> LoadDetailRegionAsync(int index, ImageDetailRequest request,
+        ImageLoadMeasurement? measurement, CancellationToken cancellationToken, bool useRegion = true)
+    {
+        // 表示の変更とファイルの切り替えの、どちらでも待機中の要求を中止できるようにする。
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token, cancellationToken);
+        measurement?.StartStage("DecodeQueue");
+        await DecodeQueue.WaitAsync(cancellation.Token);
+        try
+        {
+            return useRegion
+                ? await ImageLoader.LoadDetailRegionAsync(Path, index, request, measurement, cancellation.Token)
+                : await ImageLoader.LoadFullDetailAsync(Path, index, request, measurement, cancellation.Token);
+        }
+        finally { DecodeQueue.Release(); }
+    }
+
     public async Task<BitmapSource> LoadCropAsync(int index, Int32Rect rectangle)
     {
-        await DecodeGate.WaitAsync(Token);
+        await DecodeQueue.WaitAsync(Token);
         try { return await ImageLoader.LoadCropAsync(Path, index, rectangle, Token); }
-        finally { DecodeGate.Release(); }
+        finally { DecodeQueue.Release(); }
     }
 
     public async Task SaveCropAsync(int index, Int32Rect rectangle, string outputPath)
     {
-        await DecodeGate.WaitAsync(Token);
+        await DecodeQueue.WaitAsync(Token);
         try { await ImageLoader.SaveCropAsync(Path, index, rectangle, outputPath, Token); }
-        finally { DecodeGate.Release(); }
+        finally { DecodeQueue.Release(); }
     }
 
     public async Task<CropPng> LoadCropPngAsync(int index, Int32Rect rectangle)
     {
-        await DecodeGate.WaitAsync(Token);
+        await DecodeQueue.WaitAsync(Token);
         try { return await ImageLoader.LoadCropPngAsync(Path, index, rectangle, Token); }
-        finally { DecodeGate.Release(); }
+        finally { DecodeQueue.Release(); }
     }
 }

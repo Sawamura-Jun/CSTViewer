@@ -15,6 +15,9 @@ internal sealed class ImageViewport
     public Rect ImageBounds => HasImage ? new Rect(_imageSize) : Rect.Empty;
     public Rect VisibleImageBounds => CanTransform
         ? Rect.Intersect(ImageToView(ImageBounds), new Rect(_viewportSize)) : Rect.Empty;
+    public Rect VisibleSourceBounds => CanTransform
+        ? Rect.Intersect(new Rect(ViewToImage(new Point()),
+            new Size(_viewportSize.Width / Scale, _viewportSize.Height / Scale)), ImageBounds) : Rect.Empty;
     private bool CanTransform => HasImage && _viewportSize.Width > 0 && _viewportSize.Height > 0;
     private double FitScale => Math.Min(_viewportSize.Width / _imageSize.Width,
         _viewportSize.Height / _imageSize.Height);

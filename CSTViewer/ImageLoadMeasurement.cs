@@ -22,6 +22,10 @@ internal sealed class ImageLoadMeasurement(string filePath)
     public long? FileSizeBytes { get; set; }
     public int? PixelWidth { get; set; }
     public int? PixelHeight { get; set; }
+    public int? RegionX { get; set; }
+    public int? RegionY { get; set; }
+    public int? RegionWidth { get; set; }
+    public int? RegionHeight { get; set; }
     public string? PixelFormat { get; set; }
     public double? ImageReadyMilliseconds { get; set; }
     public string? ActiveStage { get; private set; }

@@ -175,6 +175,7 @@ public partial class MainWindow : Window
             EmptyImageHint.Visibility = Visibility.Collapsed;
             // 先頭ページが使える時点で操作を戻し、残りページは順次先読みする。
             SetLoadingState(false);
+            ScheduleDetailLoad();
             ImageViewportCanvas.Focus();
             if (measurement is not null)
             {
@@ -185,7 +186,7 @@ public partial class MainWindow : Window
             for (int index = 1; index < session.PageCount; index++)
             {
                 measurement = CreateMeasurement(session, "PagePreview");
-                page = await session.LoadPageAsync(index, session.PreviewSize, measurement);
+                page = await session.LoadPageAsync(index, session.PreviewSize, measurement, isPreload: true);
                 session.Token.ThrowIfCancellationRequested();
                 session.Previews.Add(page);
                 session.LoadedPages = index + 1;
@@ -225,7 +226,8 @@ public partial class MainWindow : Window
             if (!_isClosed && _session == session)
             {
                 UpdatePageControls();
-                ScheduleDetailLoad();
+                // 先読み完了で、実行中または予約済みの高精細化を中止・延期しない。
+                if (!_isDetailLoading && _detailLoadTimer?.IsEnabled != true) ScheduleDetailLoad();
             }
         }
     }
@@ -266,10 +268,13 @@ public partial class MainWindow : Window
         _detailLoadTimer?.Stop();
         _zoomInteractionTimer?.Stop();
         _currentPage = page;
+        _panDetailNotBeforeTicks = 0;
+        CancelPendingDetailRegion();
+        ClearDisplayedDetailRegion();
         _isInteracting = false;
         _isZoomInteracting = false;
         _interactionPreview = page.Bitmap;
-        _currentDetailBitmap = ImageLoader.IsTiff(_session!.Path) ? _session.Details.Get(page.Index)?.Bitmap : page.Bitmap;
+        _currentDetailBitmap = ImageLoader.IsTiff(_session!.Path) ? null : page.Bitmap;
         _displaySource = page.Bitmap;
         DisplayedImage.Source = page.Bitmap;
         // 低解像度のプレビューでも、パン・ズームと寸法表示には元画像の座標を使う。
@@ -295,7 +300,9 @@ public partial class MainWindow : Window
     {
         // 保存結果とエラーは既存の下部ステータス欄へ表示し、ツールバーの行数を増やさない。
         PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? (_session is null ? "Open an image file" : _session.Error
-            ?? (_session.IsPreloading ? $"Preloading pages: {_session.LoadedPages} / {_session.PageCount}"
+            ?? (_isDetailLoading
+                ? (ImageLoader.IsTiff(_session.Path) ? "Loading image details…" : "Adjusting image display…")
+                : _session.IsPreloading ? $"Preloading pages: {_session.LoadedPages} / {_session.PageCount}"
                 : $"Page previews loaded: {_session.LoadedPages}"));
     }
 
@@ -455,11 +462,13 @@ public partial class MainWindow : Window
     private void ScheduleDetailLoad(int delayMilliseconds = ViewerSettings.DetailLoadDelayMilliseconds)
     {
         _viewRevision++;
+        CancelPendingDetailRegion();
         _detailLoadTimer?.Stop();
         // 先読み中やTIFF以外でも、操作停止後に描画品質を戻すタイマーを動かす。
         if (_isClosed || _isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _currentPage is null) return;
         _detailLoadTimer ??= CreateDetailLoadTimer();
-        _detailLoadTimer.Interval = TimeSpan.FromMilliseconds(delayMilliseconds);
+        long panDelayMilliseconds = Math.Max(0, _panDetailNotBeforeTicks - Environment.TickCount64);
+        _detailLoadTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(delayMilliseconds, panDelayMilliseconds));
         _detailLoadTimer.Start();
     }
 
@@ -475,15 +484,23 @@ public partial class MainWindow : Window
     {
         _detailLoadTimer?.Stop();
         if (_isClosed || _isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _isPanning || _isZoomInteracting || _currentPage is not { } page) return;
+        if (Environment.TickCount64 < _panDetailNotBeforeTicks)
+        {
+            ScheduleDetailLoad(0);
+            return;
+        }
         _isInteracting = false;
         UpdateBitmapScalingMode();
         if (_isDetailLoading || _session is not { } session) return;
+        if (ImageLoader.IsTiff(session.Path))
+        {
+            await LoadVisibleDetailsAsync(session, page);
+            return;
+        }
         double displayScale = GetDisplayScale();
-        Size requiredSize = page.DetailDecodeSize(displayScale / ViewerSettings.DetailOversamplingFactor);
         BitmapSource source = _currentDetailBitmap ?? page.Bitmap;
-        bool decode = !HasEnoughResolution(source, requiredSize) && !session.IsPreloading && ImageLoader.IsTiff(session.Path);
         int level = GetMipmapLevel(source, page, displayScale);
-        if (!decode && session.Mipmaps.Get(source, level) is { } cached)
+        if (session.Mipmaps.Get(source, level) is { } cached)
         {
             SetDisplayedBitmap(source, cached);
             UpdateInteractionPreview(source, cached);
@@ -491,21 +508,10 @@ public partial class MainWindow : Window
         }
         long revision = _viewRevision;
         _isDetailLoading = true;
-        PreloadStatusText.Text = decode ? "Loading image details…" : "Adjusting image display…";
-        var measurement = decode ? CreateMeasurement(session, "PageDetail") : null;
+        UpdateStatusText();
         bool retry = false;
         try
         {
-            if (decode)
-            {
-                var detail = await session.LoadPageAsync(page.Index, page.DetailDecodeSize(displayScale), measurement);
-                source = detail.Bitmap;
-                if (_session == session && !session.Token.IsCancellationRequested)
-                {
-                    session.Details.Add(detail);
-                    if (_currentPage == page) _currentDetailBitmap = source;
-                }
-            }
             var bitmap = await session.Mipmaps.GetOrCreateAsync(source, GetMipmapLevel(source, page, displayScale), session.Token);
             if (_session == session && !session.Token.IsCancellationRequested)
             {
@@ -518,12 +524,10 @@ public partial class MainWindow : Window
                 else retry = true;
             }
             else retry = true;
-            WriteMeasurement(measurement, "Completed");
         }
-        catch (OperationCanceledException) { WriteMeasurement(measurement, "Cancelled"); retry = true; }
+        catch (OperationCanceledException) { retry = true; }
         catch (Exception exception) when (IsImageLoadException(exception))
         {
-            WriteMeasurement(measurement, "Failed", exception);
             if (_session == session) session.Error = "Failed to update the image display";
         }
         finally
@@ -590,6 +594,7 @@ public partial class MainWindow : Window
         if (isLoading)
         {
             _viewRevision++;
+            CancelPendingDetailRegion();
             _detailLoadTimer?.Stop();
             _zoomInteractionTimer?.Stop();
             _isInteracting = false;
@@ -801,7 +806,7 @@ public partial class MainWindow : Window
         bool wasPanning = _isPanning;
         _isPanning = false;
         ImageViewportCanvas.Cursor = _viewport.HasImage ? Cursors.Hand : Cursors.Arrow;
-        if (wasPanning) ScheduleDetailLoad();
+        if (wasPanning) ScheduleDetailLoadAfterPan();
     }
 
     private void StopPanning()
@@ -813,13 +818,14 @@ public partial class MainWindow : Window
             ImageViewportCanvas.ReleaseMouseCapture();
         }
         ImageViewportCanvas.Cursor = _viewport.HasImage ? Cursors.Hand : Cursors.Arrow;
-        if (wasPanning) ScheduleDetailLoad();
+        if (wasPanning) ScheduleDetailLoadAfterPan();
     }
 
     private void InvalidateViewport()
     {
         // 古い詳細画像の適用を防ぐ。パンでは補間品質を変更しない。
         _viewRevision++;
+        CancelPendingDetailRegion();
         _detailLoadTimer?.Stop();
     }
 
@@ -835,7 +841,7 @@ public partial class MainWindow : Window
     {
         BeginViewportInteraction();
         _isZoomInteracting = true;
-        // Python版と同じく、操作中は解像度の充足条件を外してプレビューを優先する。
+        // 全体画像は軽いプレビューを使い、TIFFの高精細領域はその上に保持する。
         if (_interactionPreview is { } preview) SetDisplayedBitmap(preview);
         if (_zoomInteractionTimer is null)
         {
@@ -860,9 +866,14 @@ public partial class MainWindow : Window
 
     private void RestoreCachedDetail()
     {
-        if (_session is not { } session || _currentDetailBitmap is not { } source) return;
+        if (_session is { } session && ImageLoader.IsTiff(session.Path))
+        {
+            UpdateDetailRegionViewport();
+            return;
+        }
+        if (_session is not { } imageSession || _currentDetailBitmap is not { } source) return;
         // 段階画像が未生成ならプレビューを保ち、ワーカーで生成してから詳細へ戻す。
-        if (session.Mipmaps.Get(source, GetMipmapLevel(source)) is { } bitmap) SetDisplayedBitmap(source, bitmap);
+        if (imageSession.Mipmaps.Get(source, GetMipmapLevel(source)) is { } bitmap) SetDisplayedBitmap(source, bitmap);
         else if (_interactionPreview is { } preview) SetDisplayedBitmap(preview);
     }
 
@@ -873,6 +884,7 @@ public partial class MainWindow : Window
         // RenderTransformはレイアウトの再計算を避け、パン・ズーム時の負荷を抑える。
         ImageTransform.Matrix = new Matrix(_viewport.Scale, 0, 0, _viewport.Scale,
             _viewport.Offset.X, _viewport.Offset.Y);
+        UpdateDetailRegionViewport();
         UpdateCropOverlay();
         UpdateBitmapScalingMode();
         ZoomStatusText.Text = _viewport.HasImage
@@ -922,6 +934,7 @@ public partial class MainWindow : Window
 
     private void UpdateBitmapScalingMode()
     {
+        UpdateDetailRegionScalingMode();
         if (DisplayedImage.Source is not BitmapSource bitmap) return;
         // WPFの表示寸法をDPIで画面の画素数に換算し、表示中のBitmapに対する倍率を求める。
         var dpi = VisualTreeHelper.GetDpi(this);
@@ -938,6 +951,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isClosed = true;
+        CancelPendingDetailRegion();
         RemoveSpreadWindowHook();
         _saveCancellation?.Cancel();
         _diffCancellation?.Cancel();
@@ -956,6 +970,7 @@ public partial class MainWindow : Window
         StopPanning();
         // 閉じた画面の画像・キャッシュへの参照を外し、常駐中も回収できるようにする。
         DisplayedImage.Source = null;
+        ClearDisplayedDetailRegion();
         _session = _openingSession = null;
         _currentPage = null;
         _displaySource = _interactionPreview = _currentDetailBitmap = null;
