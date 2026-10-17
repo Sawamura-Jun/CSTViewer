@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.5";
+    public const string ApplicationTitle = "CSTViewer v1.0.6";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -92,7 +92,8 @@ public static class ViewerSettings
     public const int DetailCacheRegionLimit = 8;
     // Python版と同じく、縮小率が0.4未満なら1/2、1/4などの画像を選ぶ。
     public const double MipmapMinimumDisplayScale = 0.4;
-    public const double BitmapSmoothScaleThreshold = 0.7;
+    // 縮小中は細線の欠落を防ぐため、等倍未満のすべての倍率で滑らか補間を使う。
+    public const double BitmapSmoothScaleThreshold = 1.0;
     public const int MipmapCacheBitmapLimit = 64;
     public const long MipmapCacheByteLimit = 64 * 1024 * 1024;
     public const int PreviewCachePageLimit = 64;

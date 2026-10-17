@@ -9,8 +9,9 @@ public partial class MainWindow
     private CancellationTokenSource? _detailRegionCancellation;
     private long _panDetailNotBeforeTicks;
 
+    // Fitでも表示寸法の1.8倍を確保し、初期プレビューだけで高精細化を打ち切らない。
     private static bool NeedsDetailRegion(ImagePage page, double displayScale) =>
-        !HasEnoughResolution(page.Bitmap, page.DetailDecodeSize(displayScale / ViewerSettings.DetailOversamplingFactor));
+        !HasEnoughResolution(page.Bitmap, page.DetailDecodeSize(displayScale));
 
     private async Task LoadVisibleDetailsAsync(ImageLoadSession session, ImagePage page)
     {

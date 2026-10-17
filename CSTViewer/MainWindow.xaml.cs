@@ -940,7 +940,7 @@ public partial class MainWindow : Window
         var dpi = VisualTreeHelper.GetDpi(this);
         double scaleX = DisplayedImage.Width * _viewport.Scale * dpi.DpiScaleX / bitmap.PixelWidth;
         double scaleY = DisplayedImage.Height * _viewport.Scale * dpi.DpiScaleY / bitmap.PixelHeight;
-        // Python版と同じく、0.7未満の縮小または段階画像の描画で滑らか補間を使う。
+        // 縮小中は画素を間引かず、段階画像への切り替え時も滑らか補間を維持する。
         bool smooth = Math.Min(scaleX, scaleY) < ViewerSettings.BitmapSmoothScaleThreshold
             || (_displaySource is { } source && !ReferenceEquals(source, bitmap));
         RenderOptions.SetBitmapScalingMode(DisplayedImage, smooth
