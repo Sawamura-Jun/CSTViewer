@@ -24,6 +24,8 @@ public partial class MainWindow
             ClearDisplayedDetailRegion();
             return;
         }
+        // 追加デコードを待つ間も、表示に使える保存済みの②へ先に戻す。
+        if (CanApplyFullDetail(session, page)) UpdateDetailRegionViewport();
         ImageDetailRequest request = ImageDetailRequest.Create(_viewport, displayScale);
         if (request.Rectangle.IsEmpty) return;
         // 表示範囲が鮮明なら再利用し、パンで周辺の余白がずれただけでは再デコードしない。
@@ -159,21 +161,39 @@ public partial class MainWindow
             return;
         }
         // 操作中に完了した画像も含め、キャッシュへの差し替えは操作終了後に行う。
-        Rect visible = _viewport.VisibleSourceBounds;
         if (!_isPanning)
         {
-            var cached = session.Details.Get(page.Index, _viewport.ImageBounds, displayScale)
-                ?? (_currentDetailRegion?.Covers(page.Index, visible, displayScale) == true
-                    ? _currentDetailRegion : session.Details.Get(page.Index, visible, displayScale));
+            var cached = FindDetailForDisplay(session, page, displayScale);
             // 同じ画像でも、ズーム中に隠していた場合は表示とくり抜きを復元する。
             if (cached is not null && (!ReferenceEquals(cached, _currentDetailRegion)
                 || DetailRegionImage.Visibility != Visibility.Visible))
                 SetDisplayedDetailRegion(cached);
+            else if (cached is null) HideDisplayedDetailRegion();
         }
         UpdateDetailRegionTransform();
-        if (_currentDetailRegion is { } region
+        if (DetailRegionImage.Visibility == Visibility.Visible && _currentDetailRegion is { } region
             && session.Mipmaps.Get(region.Bitmap, GetDetailMipmapLevel(region), region.PageIndex) is { } mipmap)
             DetailRegionImage.Source = mipmap;
+    }
+
+    private ImageDetailRegion? FindDetailForDisplay(ImageLoadSession session, ImagePage page, double displayScale)
+    {
+        Rect visible = _viewport.VisibleSourceBounds;
+        var best = session.Details.GetForDisplay(page.Index, visible);
+        if (_currentDetailRegion is { } current && current.ContainsView(page.Index, visible))
+        {
+            bool currentIsEnough = current.CoversForDisplay(page.Index, visible, displayScale);
+            bool cachedIsEnough = best?.CoversForDisplay(page.Index, visible, displayScale) == true;
+            // 1画素の丸め差だけなら、完成済みの全体キャッシュへ切り替える。
+            double roundingTolerance = Math.Max(1d / current.Rectangle.Width, 1d / current.Rectangle.Height);
+            // 古い全体画像が遅れて完成しても、直前のより鮮明な領域画像を後退させない。
+            if (best is null || currentIsEnough && !cachedIsEnough
+                || currentIsEnough == cachedIsEnough && current.PixelScale > best.PixelScale + roundingTolerance) best = current;
+        }
+        double previewScale = Math.Min(page.Bitmap.PixelWidth / (double)page.SourceWidth,
+            page.Bitmap.PixelHeight / (double)page.SourceHeight);
+        // 1倍に届かない場合も、プレビューより細かい②なら暫定表示して追加生成を続ける。
+        return best is not null && best.PixelScale > previewScale ? best : null;
     }
 
     private void UpdateDetailRegionTransform()
@@ -206,8 +226,7 @@ public partial class MainWindow
         try
         {
             await PrepareDetailMipmapAsync(session, region);
-            if (CanApplyFullDetail(session, page) && region.Covers(page.Index, _viewport.VisibleSourceBounds, GetDisplayScale()))
-                SetDisplayedDetailRegion(region);
+            if (CanApplyFullDetail(session, page)) UpdateDetailRegionViewport();
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) when (IsImageLoadException(exception))

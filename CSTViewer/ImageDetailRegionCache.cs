@@ -21,6 +21,19 @@ internal sealed class ImageDetailRegionCache(int pageLimit, long byteLimit = lon
         return null;
     }
 
+    public ImageDetailRegion? GetForDisplay(int pageIndex, Rect visible)
+    {
+        for (var node = _regions.First; node is not null; node = node.Next)
+        {
+            // 各ページの②は1件だけ保持する。解像度が不足していても暫定表示の候補として返す。
+            if (!node.Value.ContainsView(pageIndex, visible)) continue;
+            _regions.Remove(node);
+            _regions.AddFirst(node);
+            return node.Value;
+        }
+        return null;
+    }
+
     public void Add(ImageDetailRegion region)
     {
         if (region.ByteSize > byteLimit) return;

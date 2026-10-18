@@ -36,10 +36,18 @@ internal sealed record ImageDetailRegion(int PageIndex, Int32Rect Rectangle, Bit
 {
     public Rect Bounds => new(Rectangle.X, Rectangle.Y, Rectangle.Width, Rectangle.Height);
     public long ByteSize => ((Bitmap.PixelWidth * (long)Bitmap.Format.BitsPerPixel + 7) / 8) * Bitmap.PixelHeight;
+    public double PixelScale => Math.Min(Bitmap.PixelWidth / (double)Rectangle.Width,
+        Bitmap.PixelHeight / (double)Rectangle.Height);
 
-    // 再利用にもデコード時と同じ余裕を要求し、拡大途中で補間用の画素が不足するのを防ぐ。
-    public bool Covers(int pageIndex, Rect visible, double displayScale) => PageIndex == pageIndex
-        && !visible.IsEmpty && Bounds.Contains(visible)
-        && Bitmap.PixelWidth >= Math.Ceiling(Rectangle.Width * Math.Min(1, displayScale * ViewerSettings.DetailOversamplingFactor)) - 1
-        && Bitmap.PixelHeight >= Math.Ceiling(Rectangle.Height * Math.Min(1, displayScale * ViewerSettings.DetailOversamplingFactor)) - 1;
+    public bool ContainsView(int pageIndex, Rect visible) => PageIndex == pageIndex
+        && !visible.IsEmpty && Bounds.Contains(visible);
+
+    // 表示への復帰は1倍の画素数で判断し、追加生成に必要な1.8倍の余裕とは分ける。
+    public bool CoversForDisplay(int pageIndex, Rect visible, double displayScale) => ContainsView(pageIndex, visible)
+        && Bitmap.PixelWidth >= Math.Ceiling(Rectangle.Width * Math.Min(1, displayScale)) - 1
+        && Bitmap.PixelHeight >= Math.Ceiling(Rectangle.Height * Math.Min(1, displayScale)) - 1;
+
+    // 新規生成・更新には従来どおり1.8倍の余裕を要求する。即時表示の判定には使わない。
+    public bool Covers(int pageIndex, Rect visible, double displayScale) =>
+        CoversForDisplay(pageIndex, visible, displayScale * ViewerSettings.DetailOversamplingFactor);
 }

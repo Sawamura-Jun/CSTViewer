@@ -43,18 +43,18 @@ public partial class MainWindow
             UpdateStatusText();
             var region = await loading;
             if (CanApplyFullDetail(session, page)
-                && region.Covers(page.Index, _viewport.VisibleSourceBounds, GetDisplayScale()))
+                && region.ContainsView(page.Index, _viewport.VisibleSourceBounds))
             {
                 await PrepareDetailMipmapAsync(session, region);
                 // ファイルやページの変更、パン・ズームが挟まった場合はキャッシュだけを残す。
-                if (CanApplyFullDetail(session, page) && !_isDetailLoading
-                    && region.Covers(page.Index, _viewport.VisibleSourceBounds, GetDisplayScale()))
+                if (CanApplyFullDetail(session, page))
                 {
                     measurement?.StartStage("UiApply");
-                    SetDisplayedDetailRegion(region);
+                    // 新しい領域画像の読み込み中も、現在使える最も細かい画像を先に表示する。
+                    UpdateDetailRegionViewport();
                 }
             }
-            // 読み込み中に拡大された場合は、古い倍率の結果を表示せず新しい解像度を予約する。
+            // 暫定表示に使えても、拡大後の1.8倍に不足する場合は解像度の更新を予約する。
             retry = CanApplyFullDetail(session, page)
                 && session.Details.Get(page.Index, _viewport.ImageBounds, GetDisplayScale()) is null;
             WriteMeasurement(measurement, "Completed");
