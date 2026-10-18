@@ -11,6 +11,11 @@ namespace CSTViewer;
 
 public partial class MainWindow : Window
 {
+    // TIFFの画像状態の名称:
+    // ① プレビュー画像: ページ全体を画面サイズを目安に縮小し、初期表示・ページ切り替え・ズーム中に使う。
+    // ② 表示用高精細画像（Loading image details…）: 表示倍率の1.8倍で生成・保存する（元解像度が上限）。
+    // ②は表示領域＋各辺50%を先行し、その後同じ必要解像度でページ全体を生成して置き換える。
+    // Fit時は先行領域が既にページ全体のため、その②を保存して二重生成を省く。
     private readonly ImageViewport _viewport = new();
     private readonly string _performanceLogPath;
     private readonly DirectoryImageListCache _directoryImageCache;
@@ -154,6 +159,7 @@ public partial class MainWindow : Window
         SetLoadingState(true);
         try
         {
+            // ① プレビュー画像を先に表示し、②の完成前から操作できるようにする。
             ImagePage page = await session.LoadPageAsync(0, session.PreviewSize, measurement);
             session.Token.ThrowIfCancellationRequested();
             CompleteRenderMeasurement("SupersededBeforeRenderCallback");
@@ -183,6 +189,7 @@ public partial class MainWindow : Window
                 BeginRenderMeasurement(measurement);
             }
             measurement = null;
+            // 残りページの①を先読みする。②のページ全体版の新規デコードは先読み完了後に開始する。
             for (int index = 1; index < session.PageCount; index++)
             {
                 measurement = CreateMeasurement(session, "PagePreview");
@@ -300,7 +307,7 @@ public partial class MainWindow : Window
     {
         // 保存結果とエラーは既存の下部ステータス欄へ表示し、ツールバーの行数を増やさない。
         PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? (_session is null ? "Open an image file" : _session.Error
-            ?? (_isDetailLoading
+            ?? (_isDetailLoading || _currentPage is { } page && _session.IsFullPageLoading(page.Index)
                 ? (ImageLoader.IsTiff(_session.Path) ? "Loading image details…" : "Adjusting image display…")
                 : _session.IsPreloading ? $"Preloading pages: {_session.LoadedPages} / {_session.PageCount}"
                 : $"Page previews loaded: {_session.LoadedPages}"));
@@ -491,13 +498,15 @@ public partial class MainWindow : Window
         _detailAfterPanRequested = false;
         if (ImageLoader.IsTiff(session.Path))
         {
+            // ②の領域画像を先に確保し、必要なら同じ解像度のページ全体版をバックグラウンド生成する。
             await LoadVisibleDetailsAsync(session, page);
+            StartFullPageDetails(session, page);
             return;
         }
         double displayScale = GetDisplayScale();
         BitmapSource source = _currentDetailBitmap ?? page.Bitmap;
         int level = GetMipmapLevel(source, page, displayScale);
-        if (session.Mipmaps.Get(source, level) is { } cached)
+        if (session.Mipmaps.Get(source, level, page.Index) is { } cached)
         {
             SetDisplayedBitmap(source, cached);
             UpdateInteractionPreview(source, cached);
@@ -509,7 +518,7 @@ public partial class MainWindow : Window
         bool retry = false;
         try
         {
-            var bitmap = await session.Mipmaps.GetOrCreateAsync(source, GetMipmapLevel(source, page, displayScale), session.Token);
+            var bitmap = await session.Mipmaps.GetOrCreateAsync(source, GetMipmapLevel(source, page, displayScale), session.Token, page.Index);
             if (_session == session && !session.Token.IsCancellationRequested)
             {
                 // 操作やページ変更で古くなった結果を、現在の表示に上書きしない。
@@ -591,6 +600,7 @@ public partial class MainWindow : Window
         {
             _viewRevision++;
             CancelPendingDetailRegion();
+            _session?.CancelFullPages();
             _detailLoadTimer?.Stop();
             _zoomInteractionTimer?.Stop();
             _isInteracting = false;
@@ -836,10 +846,15 @@ public partial class MainWindow : Window
 
     private void BeginZoomInteraction()
     {
+        bool started = !_isZoomInteracting;
         BeginViewportInteraction();
         _isZoomInteracting = true;
-        // 全体画像は軽いプレビューを使い、TIFFの高精細領域はその上に保持する。
-        if (_interactionPreview is { } preview) SetDisplayedBitmap(preview);
+        // Python版と同じく、ズーム中は高精細画像を描画せず軽いプレビューだけを使う。
+        if (started && _interactionPreview is { } preview)
+        {
+            HideDisplayedDetailRegion();
+            SetDisplayedBitmap(preview);
+        }
         if (_zoomInteractionTimer is null)
         {
             _zoomInteractionTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -870,13 +885,13 @@ public partial class MainWindow : Window
         }
         if (_session is not { } imageSession || _currentDetailBitmap is not { } source) return;
         // 段階画像が未生成ならプレビューを保ち、ワーカーで生成してから詳細へ戻す。
-        if (imageSession.Mipmaps.Get(source, GetMipmapLevel(source)) is { } bitmap) SetDisplayedBitmap(source, bitmap);
+        if (imageSession.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) is { } bitmap) SetDisplayedBitmap(source, bitmap);
         else if (_interactionPreview is { } preview) SetDisplayedBitmap(preview);
     }
 
     private void ApplyViewport()
     {
-        if (_displaySource is { } source && _session?.Mipmaps.Get(source, GetMipmapLevel(source)) is { } bitmap)
+        if (_displaySource is { } source && _session?.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) is { } bitmap)
             DisplayedImage.Source = bitmap;
         // RenderTransformはレイアウトの再計算を避け、パン・ズーム時の負荷を抑える。
         ImageTransform.Matrix = new Matrix(_viewport.Scale, 0, 0, _viewport.Scale,
@@ -896,7 +911,7 @@ public partial class MainWindow : Window
     private void SetDisplayedBitmap(BitmapSource source, BitmapSource? bitmap = null)
     {
         _displaySource = source;
-        DisplayedImage.Source = bitmap ?? _session?.Mipmaps.Get(source, GetMipmapLevel(source)) ?? source;
+        DisplayedImage.Source = bitmap ?? _session?.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) ?? source;
         UpdateBitmapScalingMode();
     }
 

@@ -85,20 +85,16 @@ public static class ViewerSettings
     // 通常の詳細更新にはズーム関連の待機時間の合計を使い、パン終了後は待たずに更新する。
     public const int DetailLoadDelayMilliseconds = ZoomInteractionIdleMilliseconds + DetailAfterZoomIdleDelayMilliseconds;
     public const double DetailOversamplingFactor = 1.8;
-    // true: 表示範囲＋各辺の余白を高精細化する。false: 表示中ページ全体を高精細化する。
-    public static bool UseRegionalDetailLoading { get; set; } = true;
-    // 表示範囲の各辺に100%の余白を読み込み、小さなパンでの再デコードを避ける。
-    public const double DetailRegionMarginRatio = 1.0;
-    public const int DetailCacheRegionLimit = 8;
+    // ②は各辺50%の余白を先に読み込み、その後同じ表示倍率向けの解像度でページ全体を生成する。
+    public const double DetailRegionMarginRatio = 0.5;
+    // 0はページ数の制限なし。開いているファイルで生成した②を全ページ分保持する。
+    public const int DetailCachePageLimit = 0;
     // Python版と同じく、縮小率が0.4未満なら1/2、1/4などの画像を選ぶ。
     public const double MipmapMinimumDisplayScale = 0.4;
     // 縮小中は細線の欠落を防ぐため、等倍未満のすべての倍率で滑らか補間を使う。
     public const double BitmapSmoothScaleThreshold = 1.0;
-    public const int MipmapCacheBitmapLimit = 64;
-    public const long MipmapCacheByteLimit = 64 * 1024 * 1024;
+    public const int MipmapCachePageLimit = 16;
     public const int PreviewCachePageLimit = 64;
-    public const long PreviewCacheByteLimit = 128 * 1024 * 1024;
-    public const long DetailCacheByteLimit = 128 * 1024 * 1024;
     public static readonly bool EnablePerformanceLogging = false;
     public const int FirstRenderMeasurementTimeoutMilliseconds = 5000;
     public static string PerformanceLogPath => System.IO.Path.Combine(

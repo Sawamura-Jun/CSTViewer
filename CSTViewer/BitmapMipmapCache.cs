@@ -3,13 +3,15 @@ using System.Windows.Media.Imaging;
 
 namespace CSTViewer;
 
-/// <summary>同じ元Bitmapの1/2、1/4などの縮小画像を、容量制限付きで再利用する。</summary>
-internal sealed class BitmapMipmapCache(int bitmapLimit, long byteLimit)
+/// <summary>ページごとの1/2、1/4などの縮小画像を、最近使ったページから保持する。</summary>
+internal sealed class BitmapMipmapCache(int pageLimit, long byteLimit = long.MaxValue)
 {
-    private sealed record Entry(WeakReference<BitmapSource> Source, int Level, BitmapSource Bitmap, long Bytes);
+    private sealed record Entry(int PageIndex, WeakReference<BitmapSource> Source, int Level, BitmapSource Bitmap, long Bytes);
     private readonly LinkedList<Entry> _entries = new();
+    private readonly LinkedList<int> _pages = new();
     public long ByteSize { get; private set; }
     public int Count => _entries.Count;
+    public int PageCount => _pages.Count;
 
     public static int RequiredLevel(double scale)
     {
@@ -23,27 +25,35 @@ internal sealed class BitmapMipmapCache(int bitmapLimit, long byteLimit)
         return level;
     }
 
-    public BitmapSource? Get(BitmapSource source, int level)
+    public BitmapSource? Get(BitmapSource source, int level, int pageIndex = 0)
     {
-        if (level == 0) return source;
+        if (level == 0)
+        {
+            lock (_entries)
+            {
+                if (_pages.Contains(pageIndex)) TouchPage(pageIndex);
+            }
+            return source;
+        }
         lock (_entries)
         {
             RemoveExpiredEntries();
             for (var node = _entries.First; node is not null; node = node.Next)
             {
-                if (node.Value.Level != level || !Matches(node.Value, source)) continue;
+                if (node.Value.PageIndex != pageIndex || node.Value.Level != level || !Matches(node.Value, source)) continue;
                 _entries.Remove(node);
                 _entries.AddFirst(node);
+                TouchPage(pageIndex);
                 return node.Value.Bitmap;
             }
             return null;
         }
     }
 
-    public async Task<BitmapSource> GetOrCreateAsync(BitmapSource source, int level, CancellationToken token)
+    public async Task<BitmapSource> GetOrCreateAsync(BitmapSource source, int level, CancellationToken token, int pageIndex = 0)
     {
         token.ThrowIfCancellationRequested();
-        if (Get(source, level) is { } cached) return cached;
+        if (Get(source, level, pageIndex) is { } cached) return cached;
         BitmapSource resizeSource = source;
         int nearestLevel = 0;
         lock (_entries)
@@ -53,7 +63,7 @@ internal sealed class BitmapMipmapCache(int bitmapLimit, long byteLimit)
             for (var node = _entries.First; node is not null; node = node.Next)
             {
                 var entry = node.Value;
-                if (entry.Level <= nearestLevel || entry.Level >= level || !Matches(entry, source)) continue;
+                if (entry.PageIndex != pageIndex || entry.Level <= nearestLevel || entry.Level >= level || !Matches(entry, source)) continue;
                 nearestLevel = entry.Level;
                 resizeSource = entry.Bitmap;
                 nearest = node;
@@ -74,12 +84,14 @@ internal sealed class BitmapMipmapCache(int bitmapLimit, long byteLimit)
                 for (var node = _entries.First; node is not null;)
                 {
                     var next = node.Next;
-                    if (node.Value.Level == level && Matches(node.Value, source)) Remove(node);
+                    if (node.Value.PageIndex == pageIndex && node.Value.Level == level && Matches(node.Value, source)) Remove(node);
                     node = next;
                 }
-                _entries.AddFirst(new Entry(new WeakReference<BitmapSource>(source), level, bitmap, bytes));
+                _entries.AddFirst(new Entry(pageIndex, new WeakReference<BitmapSource>(source), level, bitmap, bytes));
                 ByteSize += bytes;
-                while (_entries.Count > bitmapLimit || ByteSize > byteLimit) Remove(_entries.Last!);
+                TouchPage(pageIndex);
+                while (_pages.Count > pageLimit) RemovePage(_pages.Last!.Value);
+                while (ByteSize > byteLimit) Remove(_entries.Last!);
             }
         }
         return bitmap;
@@ -100,7 +112,25 @@ internal sealed class BitmapMipmapCache(int bitmapLimit, long byteLimit)
 
     private void Remove(LinkedListNode<Entry> node)
     {
+        int pageIndex = node.Value.PageIndex;
         ByteSize -= node.Value.Bytes;
         _entries.Remove(node);
+        if (!_entries.Any(entry => entry.PageIndex == pageIndex)) _pages.Remove(pageIndex);
+    }
+
+    private void TouchPage(int pageIndex)
+    {
+        _pages.Remove(pageIndex);
+        _pages.AddFirst(pageIndex);
+    }
+
+    private void RemovePage(int pageIndex)
+    {
+        for (var node = _entries.First; node is not null;)
+        {
+            var next = node.Next;
+            if (node.Value.PageIndex == pageIndex) Remove(node);
+            node = next;
+        }
     }
 }

@@ -1,7 +1,7 @@
 namespace CSTViewer;
 
-/// <summary>最近使ったページを優先し、ページ数と画素バイト数の両方でメモリを制限する。</summary>
-internal sealed class PageImageCache(int pageLimit, long byteLimit)
+/// <summary>最近使ったページを優先し、指定されたページ数まで保持する。</summary>
+internal sealed class PageImageCache(int pageLimit, long byteLimit = long.MaxValue)
 {
     private readonly LinkedList<ImagePage> _pages = new();
     public long ByteSize { get; private set; }
