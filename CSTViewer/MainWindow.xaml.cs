@@ -268,7 +268,7 @@ public partial class MainWindow : Window
         _detailLoadTimer?.Stop();
         _zoomInteractionTimer?.Stop();
         _currentPage = page;
-        _panDetailNotBeforeTicks = 0;
+        _detailAfterPanRequested = false;
         CancelPendingDetailRegion();
         ClearDisplayedDetailRegion();
         _isInteracting = false;
@@ -459,16 +459,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ScheduleDetailLoad(int delayMilliseconds = ViewerSettings.DetailLoadDelayMilliseconds)
+    private void ScheduleDetailLoad(int delayMilliseconds = ViewerSettings.DetailLoadDelayMilliseconds,
+        bool preserveRunningDetail = false)
     {
+        if (!preserveRunningDetail) _detailAfterPanRequested = false;
         _viewRevision++;
-        CancelPendingDetailRegion();
+        CancelPendingDetailRegion(preserveRunningDetail);
         _detailLoadTimer?.Stop();
         // 先読み中やTIFF以外でも、操作停止後に描画品質を戻すタイマーを動かす。
-        if (_isClosed || _isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _currentPage is null) return;
+        if (_isClosed || _isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _isPanning || _currentPage is null) return;
         _detailLoadTimer ??= CreateDetailLoadTimer();
-        long panDelayMilliseconds = Math.Max(0, _panDetailNotBeforeTicks - Environment.TickCount64);
-        _detailLoadTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(delayMilliseconds, panDelayMilliseconds));
+        _detailLoadTimer.Interval = TimeSpan.FromMilliseconds(delayMilliseconds);
         _detailLoadTimer.Start();
     }
 
@@ -484,14 +485,10 @@ public partial class MainWindow : Window
     {
         _detailLoadTimer?.Stop();
         if (_isClosed || _isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _isPanning || _isZoomInteracting || _currentPage is not { } page) return;
-        if (Environment.TickCount64 < _panDetailNotBeforeTicks)
-        {
-            ScheduleDetailLoad(0);
-            return;
-        }
         _isInteracting = false;
         UpdateBitmapScalingMode();
         if (_isDetailLoading || _session is not { } session) return;
+        _detailAfterPanRequested = false;
         if (ImageLoader.IsTiff(session.Path))
         {
             await LoadVisibleDetailsAsync(session, page);
@@ -536,8 +533,7 @@ public partial class MainWindow : Window
             if (!_isClosed)
             {
                 UpdatePageControls();
-                if (retry || revision != _viewRevision) ScheduleDetailLoad(_isZoomInteracting
-                    ? ViewerSettings.DetailLoadDelayMilliseconds : ViewerSettings.DetailAfterZoomIdleDelayMilliseconds);
+                if (retry || revision != _viewRevision) ScheduleDetailRetry();
             }
         }
     }
@@ -742,7 +738,7 @@ public partial class MainWindow : Window
         }
         // マウスキャプチャにより、表示領域の外へドラッグしても操作を継続する。
         _isPanning = ImageViewportCanvas.CaptureMouse();
-        if (_isPanning) InvalidateViewport();
+        if (_isPanning) InvalidateViewport(preserveRunningDetail: true);
         ImageViewportCanvas.Cursor = _isPanning ? Cursors.SizeAll : Cursors.Hand;
         e.Handled = true;
     }
@@ -779,7 +775,7 @@ public partial class MainWindow : Window
     internal void PanImage(Vector delta)
     {
         if (!_isPanning || _isLoading || _isClosed) return;
-        InvalidateViewport();
+        InvalidateViewport(preserveRunningDetail: true);
         _viewport.Pan(delta);
         ApplyViewport();
     }
@@ -821,11 +817,12 @@ public partial class MainWindow : Window
         if (wasPanning) ScheduleDetailLoadAfterPan();
     }
 
-    private void InvalidateViewport()
+    private void InvalidateViewport(bool preserveRunningDetail = false)
     {
-        // 古い詳細画像の適用を防ぐ。パンでは補間品質を変更しない。
+        // 古い詳細画像の適用を防ぐ。パンでは実行中のデコードと補間品質を保つ。
+        _detailAfterPanRequested = false;
         _viewRevision++;
-        CancelPendingDetailRegion();
+        CancelPendingDetailRegion(preserveRunningDetail);
         _detailLoadTimer?.Stop();
     }
 

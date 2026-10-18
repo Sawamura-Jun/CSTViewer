@@ -54,7 +54,8 @@ internal sealed class ImageLoadSession
     }
 
     public async Task<ImageDetailRegion> LoadDetailRegionAsync(int index, ImageDetailRequest request,
-        ImageLoadMeasurement? measurement, CancellationToken cancellationToken, bool useRegion = true)
+        ImageLoadMeasurement? measurement, CancellationToken cancellationToken, bool useRegion = true,
+        Action? onDecodeStarted = null)
     {
         // 表示の変更とファイルの切り替えの、どちらでも待機中の要求を中止できるようにする。
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token, cancellationToken);
@@ -62,6 +63,9 @@ internal sealed class ImageLoadSession
         await DecodeQueue.WaitAsync(cancellation.Token);
         try
         {
+            cancellation.Token.ThrowIfCancellationRequested();
+            // デコード枠を得た後に通知し、実行中と順番待ちの要求を区別する。
+            onDecodeStarted?.Invoke();
             return useRegion
                 ? await ImageLoader.LoadDetailRegionAsync(Path, index, request, measurement, cancellation.Token)
                 : await ImageLoader.LoadFullDetailAsync(Path, index, request, measurement, cancellation.Token);

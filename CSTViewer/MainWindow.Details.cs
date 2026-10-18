@@ -7,7 +7,8 @@ public partial class MainWindow
 {
     private ImageDetailRegion? _currentDetailRegion;
     private CancellationTokenSource? _detailRegionCancellation;
-    private long _panDetailNotBeforeTicks;
+    private bool _isDetailDecoding;
+    private bool _detailAfterPanRequested;
 
     // Fitでも表示寸法の1.8倍を確保し、初期プレビューだけで高精細化を打ち切らない。
     private static bool NeedsDetailRegion(ImagePage page, double displayScale) =>
@@ -26,8 +27,9 @@ public partial class MainWindow
             ? ImageDetailRequest.Create(_viewport, displayScale)
             : ImageDetailRequest.CreateFullImage(_viewport, displayScale);
         if (request.Rectangle.IsEmpty) return;
-        // 選択したモードの範囲（周辺の余白またはページ全体）が足りているか確認する。
-        Rect required = new(request.Rectangle.X, request.Rectangle.Y, request.Rectangle.Width, request.Rectangle.Height);
+        // 表示範囲が鮮明なら再利用し、パンで周辺の余白がずれただけでは再デコードしない。
+        Rect required = useRegion ? _viewport.VisibleSourceBounds
+            : new Rect(request.Rectangle.X, request.Rectangle.Y, request.Rectangle.Width, request.Rectangle.Height);
         if (_currentDetailRegion?.Covers(page.Index, required, displayScale) == true) return;
         if (session.Details.Get(page.Index, required, displayScale) is { } cached)
         {
@@ -37,18 +39,22 @@ public partial class MainWindow
         long revision = _viewRevision;
         using var cancellation = new CancellationTokenSource();
         _detailRegionCancellation = cancellation;
+        _isDetailDecoding = false;
         _isDetailLoading = true;
         UpdateStatusText();
         var measurement = CreateMeasurement(session, useRegion ? "PageDetailRegion" : "PageDetailFull");
         bool retry = false;
         try
         {
-            var region = await session.LoadDetailRegionAsync(page.Index, request, measurement, cancellation.Token, useRegion);
+            var region = await session.LoadDetailRegionAsync(page.Index, request, measurement, cancellation.Token, useRegion,
+                onDecodeStarted: () => _isDetailDecoding = true);
             if (_session == session && !session.Token.IsCancellationRequested && !_isClosed)
             {
                 session.Details.Add(region);
-                // 読み込み中に動いた場合もキャッシュには残し、古い位置の表示は適用しない。
-                if (revision == _viewRevision && _currentPage == page && !_isPanning && !_isZoomInteracting)
+                // パン後は更新番号が変わっていても、移動先と必要解像度を満たす結果を直ちに使う。
+                bool coversCurrentView = !cancellation.IsCancellationRequested
+                    && region.Covers(page.Index, useRegion ? _viewport.VisibleSourceBounds : _viewport.ImageBounds, GetDisplayScale());
+                if ((revision == _viewRevision || coversCurrentView) && _currentPage == page && !_isPanning && !_isZoomInteracting)
                 {
                     measurement?.StartStage("UiApply");
                     SetDisplayedDetailRegion(region);
@@ -70,23 +76,38 @@ public partial class MainWindow
         finally
         {
             if (ReferenceEquals(_detailRegionCancellation, cancellation)) _detailRegionCancellation = null;
+            _isDetailDecoding = false;
             _isDetailLoading = false;
             if (!_isClosed)
             {
                 UpdatePageControls();
-                if (retry || revision != _viewRevision) ScheduleDetailLoad(_isZoomInteracting
-                    ? ViewerSettings.DetailLoadDelayMilliseconds : ViewerSettings.DetailAfterZoomIdleDelayMilliseconds);
+                if (retry || revision != _viewRevision) ScheduleDetailRetry();
             }
         }
     }
 
-    private void CancelPendingDetailRegion() => _detailRegionCancellation?.Cancel();
+    private void CancelPendingDetailRegion(bool preserveRunningDetail = false)
+    {
+        // パンでは開始済みの1件だけを完走させ、順番待ちの要求は取り消す。
+        if (!preserveRunningDetail || !_isDetailDecoding) _detailRegionCancellation?.Cancel();
+    }
 
     private void ScheduleDetailLoadAfterPan()
     {
-        // 単調増加する時計で開始可能時刻を保ち、再試行でもパン後の待機を短縮しない。
-        _panDetailNotBeforeTicks = Environment.TickCount64 + ViewerSettings.DetailLoadDelayMilliseconds;
-        ScheduleDetailLoad();
+        // キャッシュを直ちに表示し、不足する場合の新規デコードも待ち時間なしで予約する。
+        _detailAfterPanRequested = true;
+        ScheduleDetailLoad(0, preserveRunningDetail: true);
+        if (!_isClosed && !_isLoading && !_isChangingPage && !_isCropBusy && !IsDiffBusy && !IsSaveBusy && !_isZoomInteracting)
+            RestoreCachedDetail();
+    }
+
+    private void ScheduleDetailRetry()
+    {
+        if (_isPanning) return;
+        // パン前から続く読み込みの完了後も、移動先の確認を遅らせない。
+        ScheduleDetailLoad(_detailAfterPanRequested ? 0 : _isZoomInteracting
+            ? ViewerSettings.DetailLoadDelayMilliseconds : ViewerSettings.DetailAfterZoomIdleDelayMilliseconds,
+            preserveRunningDetail: _detailAfterPanRequested);
     }
 
     private void SetDisplayedDetailRegion(ImageDetailRegion region)
@@ -122,9 +143,9 @@ public partial class MainWindow
             if (_currentDetailRegion is not null) ClearDisplayedDetailRegion();
             return;
         }
-        // パン中は読み込まず、保持済みの領域を同じ座標変換で動かす。
+        // パン中に完了した画像も含め、キャッシュへの差し替えは操作終了後に行う。
         Rect visible = _viewport.VisibleSourceBounds;
-        if (_currentDetailRegion?.Covers(page.Index, visible, displayScale) != true
+        if (!_isPanning && _currentDetailRegion?.Covers(page.Index, visible, displayScale) != true
             && session.Details.Get(page.Index, visible, displayScale) is { } cached)
             SetDisplayedDetailRegion(cached);
         UpdateDetailRegionTransform();
