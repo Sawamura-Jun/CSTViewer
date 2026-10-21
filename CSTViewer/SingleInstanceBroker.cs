@@ -2,10 +2,12 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Win32.SafeHandles;
 
 namespace CSTViewer;
 
@@ -49,7 +51,11 @@ internal sealed class SingleInstanceBroker : IDisposable
         catch (UnauthorizedAccessException) { return null; }
     }
 
-    internal static async Task ForwardAsync(string pipeName, string[] paths, CancellationToken cancellationToken = default)
+    internal static Task ForwardAsync(string pipeName, string[] paths, CancellationToken cancellationToken = default) =>
+        ForwardAsync(pipeName, paths, AllowSetForegroundWindow, cancellationToken);
+
+    internal static async Task ForwardAsync(string pipeName, string[] paths,
+        Func<uint, bool> allowSetForegroundWindow, CancellationToken cancellationToken = default)
     {
         byte[] payload = JsonSerializer.SerializeToUtf8Bytes(paths);
         if (paths.Length > StartupSettings.RequestPathLimit || payload.Length > StartupSettings.RequestByteLimit)
@@ -60,6 +66,10 @@ internal sealed class SingleInstanceBroker : IDisposable
         using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         await client.ConnectAsync(timeout.Token).ConfigureAwait(false);
+        // 起動操作を受けた追加プロセスから、接続先だけに前面化の許可を渡す。
+        // 受信直後のActivateに間に合わせるため送信前に行い、許可されなくても画像は開く。
+        if (GetNamedPipeServerProcessId(client.SafePipeHandle, out uint processId))
+            _ = allowSetForegroundWindow(processId);
         byte[] header = new byte[sizeof(int)];
         BinaryPrimitives.WriteInt32LittleEndian(header, payload.Length);
         await client.WriteAsync(header, timeout.Token).ConfigureAwait(false);
@@ -120,4 +130,12 @@ internal sealed class SingleInstanceBroker : IDisposable
         // 受信ループがトークンを使い終えてから解放する。
         _ = _listener.ContinueWith(_ => _shutdown.Dispose(), TaskScheduler.Default);
     }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint serverProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(uint processId);
 }
