@@ -105,6 +105,8 @@ public partial class MainWindow
         NextFileButton.IsEnabled = available && (_directoryImages.GetNeighbor(1) is not null
             || partner?._directoryImages.GetNeighbor(1) is not null);
         FitImageButton.IsEnabled = available && (_viewport.HasImage || partner?._viewport.HasImage == true);
+        RotateRightButton.IsEnabled = CanRotateCurrentPage;
+        RotateLeftButton.IsEnabled = CanRotateCurrentPage;
         SpreadLayoutButton.IsEnabled = available;
         SaveImageButton.IsEnabled = !IsSpreadBusy && !_spreadController.IsChangingImages(this) && _currentPage is not null;
         DiffImageButton.IsEnabled = !IsSpreadBusy && !_spreadController.IsChangingImages(this) && DiffImagePath is not null;

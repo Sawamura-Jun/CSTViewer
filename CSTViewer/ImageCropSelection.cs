@@ -69,12 +69,14 @@ internal sealed class ImageCropSelection
         }
         else
         {
-            current = Clamp(current, bounds);
-            double left = _mode.HasFlag(CropHit.Left) ? current.X : _startRectangle.Left;
-            double right = _mode.HasFlag(CropHit.Right) ? current.X : _startRectangle.Right;
-            double top = _mode.HasFlag(CropHit.Top) ? current.Y : _startRectangle.Top;
-            double bottom = _mode.HasFlag(CropHit.Bottom) ? current.Y : _startRectangle.Bottom;
-            ImageRectangle = new Rect(new Point(left, top), new Point(right, bottom));
+            // 枠の左右上下は画面の向きで操作し、最後に元画像の座標へ戻す。
+            Rect startView = viewport.ImageToView(_startRectangle);
+            Point view = Clamp(position, viewport.ImageToView(bounds));
+            double left = _mode.HasFlag(CropHit.Left) ? view.X : startView.Left;
+            double right = _mode.HasFlag(CropHit.Right) ? view.X : startView.Right;
+            double top = _mode.HasFlag(CropHit.Top) ? view.Y : startView.Top;
+            double bottom = _mode.HasFlag(CropHit.Bottom) ? view.Y : startView.Bottom;
+            ImageRectangle = viewport.ViewToImage(new Rect(new Point(left, top), new Point(right, bottom)));
         }
     }
 

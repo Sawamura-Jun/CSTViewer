@@ -199,9 +199,10 @@ public partial class MainWindow
     private void UpdateDetailRegionTransform()
     {
         if (_currentDetailRegion is not { } region) return;
-        DetailRegionTransform.Matrix = new Matrix(_viewport.Scale, 0, 0, _viewport.Scale,
-            _viewport.Offset.X + region.Rectangle.X * _viewport.Scale,
-            _viewport.Offset.Y + region.Rectangle.Y * _viewport.Scale);
+        Matrix matrix = _viewport.ImageToViewMatrix;
+        // 領域画像の原点を元画像座標へ移してから、プレビューと同じ回転を適用する。
+        matrix.TranslatePrepend(region.Rectangle.X, region.Rectangle.Y);
+        DetailRegionTransform.Matrix = matrix;
     }
 
     private void UpdateDetailRegionScalingMode()

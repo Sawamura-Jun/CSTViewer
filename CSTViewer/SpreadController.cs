@@ -218,6 +218,21 @@ internal sealed class SpreadController
         finally { _applyingView = false; }
     }
 
+    public void Rotate(MainWindow source, int step)
+    {
+        var partner = EnabledPartner(source);
+        if (IsChangingImages(source) || source.IsSpreadBusy || partner?.IsSpreadBusy == true) return;
+        CancelPendingView();
+        _applyingView = true;
+        try
+        {
+            // 操作を一度ずつ適用し、回転中のFit通知が相手へ重複して送られるのを防ぐ。
+            source.RotatePageLocally(step);
+            partner?.RotatePageLocally(step);
+        }
+        finally { _applyingView = false; }
+    }
+
     public void Close(MainWindow source)
     {
         var partner = EnabledPartner(source);

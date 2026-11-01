@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 
 namespace CSTViewer;
 
@@ -11,27 +12,65 @@ internal sealed class ImageViewport
     public double Scale { get; private set; } = 1;
     public Point Offset { get; private set; }
     public bool IsFitMode { get; private set; } = true;
+    public int RotationQuarterTurns { get; private set; }
+    public Size DisplayImageSize => RotationQuarterTurns % 2 == 0 ? _imageSize : new Size(_imageSize.Height, _imageSize.Width);
     public bool HasImage => _imageSize.Width > 0 && _imageSize.Height > 0;
     public Rect ImageBounds => HasImage ? new Rect(_imageSize) : Rect.Empty;
     public Rect VisibleImageBounds => CanTransform
         ? Rect.Intersect(ImageToView(ImageBounds), new Rect(_viewportSize)) : Rect.Empty;
     public Rect VisibleSourceBounds => CanTransform
-        ? Rect.Intersect(new Rect(ViewToImage(new Point()),
-            new Size(_viewportSize.Width / Scale, _viewportSize.Height / Scale)), ImageBounds) : Rect.Empty;
+        ? Rect.Intersect(ViewToImage(new Rect(_viewportSize)), ImageBounds) : Rect.Empty;
     private bool CanTransform => HasImage && _viewportSize.Width > 0 && _viewportSize.Height > 0;
-    private double FitScale => Math.Min(_viewportSize.Width / _imageSize.Width,
-        _viewportSize.Height / _imageSize.Height);
+    private double FitScale => Math.Min(_viewportSize.Width / DisplayImageSize.Width,
+        _viewportSize.Height / DisplayImageSize.Height);
 
-    public Point ViewToImage(Point position) => new((position.X - Offset.X) / Scale,
-        (position.Y - Offset.Y) / Scale);
+    // 元画像を正の座標へ90度単位で回してから、表示倍率と位置を適用する。
+    private Matrix RotationMatrix => RotationQuarterTurns switch
+    {
+        1 => new Matrix(0, 1, -1, 0, _imageSize.Height, 0),
+        2 => new Matrix(-1, 0, 0, -1, _imageSize.Width, _imageSize.Height),
+        3 => new Matrix(0, -1, 1, 0, 0, _imageSize.Width),
+        _ => Matrix.Identity
+    };
 
-    public Rect ImageToView(Rect rectangle) => rectangle.IsEmpty ? Rect.Empty
-        : new Rect(rectangle.X * Scale + Offset.X, rectangle.Y * Scale + Offset.Y,
-            rectangle.Width * Scale, rectangle.Height * Scale);
+    public Matrix ImageToViewMatrix
+    {
+        get
+        {
+            Matrix matrix = RotationMatrix;
+            matrix.Scale(Scale, Scale);
+            matrix.Translate(Offset.X, Offset.Y);
+            return matrix;
+        }
+    }
 
-    public void SetImage(Size imageSize)
+    public Point ViewToImage(Point position)
+    {
+        Matrix inverse = ImageToViewMatrix;
+        inverse.Invert();
+        return inverse.Transform(position);
+    }
+
+    public Rect ViewToImage(Rect rectangle)
+    {
+        if (rectangle.IsEmpty) return Rect.Empty;
+        Matrix inverse = ImageToViewMatrix;
+        inverse.Invert();
+        rectangle.Transform(inverse);
+        return rectangle;
+    }
+
+    public Rect ImageToView(Rect rectangle)
+    {
+        if (rectangle.IsEmpty) return Rect.Empty;
+        rectangle.Transform(ImageToViewMatrix);
+        return rectangle;
+    }
+
+    public void SetImage(Size imageSize, int rotationQuarterTurns = 0)
     {
         _imageSize = imageSize;
+        RotationQuarterTurns = ((rotationQuarterTurns % 4) + 4) % 4;
         Fit();
     }
 
@@ -44,8 +83,8 @@ internal sealed class ImageViewport
         }
 
         Scale = FitScale;
-        Offset = new Point((_viewportSize.Width - _imageSize.Width * Scale) / 2,
-            (_viewportSize.Height - _imageSize.Height * Scale) / 2);
+        Offset = new Point((_viewportSize.Width - DisplayImageSize.Width * Scale) / 2,
+            (_viewportSize.Height - DisplayImageSize.Height * Scale) / 2);
     }
 
     public void Resize(Size viewportSize, bool preserveScale = false)
@@ -132,8 +171,10 @@ internal sealed class ImageViewport
         }
         Scale = Math.Clamp(FitScale * Math.Max(1, state.ZoomRatio), FitScale,
             Math.Max(FitScale, ViewerSettings.MaximumZoomScale));
-        Offset = new Point(_viewportSize.Width / 2 - Math.Clamp(state.Center.X, 0, 1) * _imageSize.Width * Scale,
-            _viewportSize.Height / 2 - Math.Clamp(state.Center.Y, 0, 1) * _imageSize.Height * Scale);
+        Point center = RotationMatrix.Transform(new Point(Math.Clamp(state.Center.X, 0, 1) * _imageSize.Width,
+            Math.Clamp(state.Center.Y, 0, 1) * _imageSize.Height));
+        Offset = new Point(_viewportSize.Width / 2 - center.X * Scale,
+            _viewportSize.Height / 2 - center.Y * Scale);
         IsFitMode = false;
         ClampOffset();
         return true;
@@ -142,8 +183,8 @@ internal sealed class ImageViewport
     private void ClampOffset()
     {
         // 小さい画像は中央に置き、拡大画像は表示領域から完全に外れないようにする。
-        Offset = new Point(ClampAxis(Offset.X, _imageSize.Width * Scale, _viewportSize.Width),
-            ClampAxis(Offset.Y, _imageSize.Height * Scale, _viewportSize.Height));
+        Offset = new Point(ClampAxis(Offset.X, DisplayImageSize.Width * Scale, _viewportSize.Width),
+            ClampAxis(Offset.Y, DisplayImageSize.Height * Scale, _viewportSize.Height));
     }
 
     private static double ClampAxis(double offset, double imageLength, double viewportLength)

@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.0.8";
+    public const string ApplicationTitle = "CSTViewer v1.1.0";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -29,6 +29,10 @@ public static class ViewerSettings
     public const double UiFontSize = 12;
     public const double TitleBarSeparatorHeight = 1;
     public const double ToolbarButtonHeight = 24;
+    public const string ToolbarIconFontFamily = "Segoe Fluent Icons";
+    public const string ToolbarShortcutFontFamily = "Segoe UI";
+    public const double ToolbarIconSize = 18;
+    public const double ToolbarIconShortcutGap = 6;
     // x:StaticでColorプロパティに渡すため、文字列ではなくColor型で保持する。
     public static readonly Color ToolbarButtonHoverBackground = Color.FromRgb(61, 61, 61);
     public static readonly Color ToolbarCheckedButtonHoverBackground = Color.FromRgb(120, 213, 255);
@@ -63,6 +67,8 @@ public static class ViewerSettings
     public static readonly double[] DiffAddedColor = [255, 0, 0];
     public static readonly double[] DiffDeletedColor = [0, 0, 255];
     public const Key FitShortcutKey = Key.F;
+    public const Key RotateRightShortcutKey = Key.R;
+    public const Key RotateLeftShortcutKey = Key.L;
     public const Key CloseShortcutKey = Key.C;
     public const double SpreadMinimumWindowWidth = 480;
     // DPI変換による最大1物理ピクセル程度の丸めで、復元情報を破棄しない許容差（DIP）。

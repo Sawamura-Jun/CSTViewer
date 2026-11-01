@@ -19,6 +19,16 @@ internal sealed class ImageLoadSession
         public Task<ImageDetailRegion> Task { get; set; } = null!;
     }
     private readonly Dictionary<int, FullPageWork> _fullPages = new();
+    // プレビューのキャッシュが破棄されても、開いている各ページの表示角度は保持する。
+    private readonly Dictionary<int, int> _pageRotations = new();
+    public int GetPageRotation(int index) => _pageRotations.GetValueOrDefault(index);
+    public int RotatePage(int index, int step)
+    {
+        int rotation = ((GetPageRotation(index) + step) % 4 + 4) % 4;
+        if (rotation == 0) _pageRotations.Remove(index);
+        else _pageRotations[index] = rotation;
+        return rotation;
+    }
     public Guid Id { get; } = Guid.NewGuid();
     public string Path { get; }
     public Size PreviewSize { get; }

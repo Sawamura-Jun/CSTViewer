@@ -266,8 +266,8 @@ public partial class MainWindow : Window
 
     private void ShowPage(ImagePage page, bool resizeForOrientationChange = false)
     {
-        bool orientationChanged = resizeForOrientationChange && _currentPage is { } previous
-            && (previous.SourceWidth >= previous.SourceHeight) != (page.SourceWidth >= page.SourceHeight);
+        Size previousDisplaySize = _viewport.DisplayImageSize;
+        bool hadImage = _viewport.HasImage;
         _saveStatus = null;
         StopPanning();
         ClearCropSelection();
@@ -287,8 +287,11 @@ public partial class MainWindow : Window
         // 低解像度のプレビューでも、パン・ズームと寸法表示には元画像の座標を使う。
         DisplayedImage.Width = page.SourceWidth;
         DisplayedImage.Height = page.SourceHeight;
-        _viewport.SetImage(new Size(page.SourceWidth, page.SourceHeight));
-        if (orientationChanged) ResizeWindowForPageOrientation(page);
+        _viewport.SetImage(new Size(page.SourceWidth, page.SourceHeight), _session.GetPageRotation(page.Index));
+        Size displaySize = _viewport.DisplayImageSize;
+        bool orientationChanged = resizeForOrientationChange && hadImage
+            && (previousDisplaySize.Width >= previousDisplaySize.Height) != (displaySize.Width >= displaySize.Height);
+        if (orientationChanged) ResizeWindowForPageOrientation(displaySize);
         ApplyViewport();
         Title = $"{Path.GetFileName(_session.Path)} — Page {page.Index + 1} / {page.PageCount}"
             + $" — {page.SourceWidth:N0} × {page.SourceHeight:N0} px — {ViewerSettings.ApplicationTitle}";
@@ -388,6 +391,13 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             if (!e.IsRepeat) await CreateDiffAsync();
+            return;
+        }
+        if (Keyboard.Modifiers == ModifierKeys.None
+            && e.Key is ViewerSettings.RotateRightShortcutKey or ViewerSettings.RotateLeftShortcutKey)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) RotateCurrentPage(e.Key == ViewerSettings.RotateRightShortcutKey ? 1 : -1);
             return;
         }
         if (Keyboard.Modifiers == ModifierKeys.None && e.Key == ViewerSettings.CloseShortcutKey)
@@ -894,8 +904,7 @@ public partial class MainWindow : Window
         if (_displaySource is { } source && _session?.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) is { } bitmap)
             DisplayedImage.Source = bitmap;
         // RenderTransformはレイアウトの再計算を避け、パン・ズーム時の負荷を抑える。
-        ImageTransform.Matrix = new Matrix(_viewport.Scale, 0, 0, _viewport.Scale,
-            _viewport.Offset.X, _viewport.Offset.Y);
+        ImageTransform.Matrix = _viewport.ImageToViewMatrix;
         UpdateDetailRegionViewport();
         UpdateCropOverlay();
         UpdateBitmapScalingMode();

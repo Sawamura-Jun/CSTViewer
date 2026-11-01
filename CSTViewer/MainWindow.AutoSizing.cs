@@ -37,12 +37,12 @@ public partial class MainWindow
         finally { _isApplyingAutomaticWindowSize = false; }
     }
 
-    private void ResizeWindowForPageOrientation(ImagePage page)
+    private void ResizeWindowForPageOrientation(Size displaySize)
     {
         // 同期表示では左右配置を維持し、手動変更の履歴はウィンドウを閉じるまで保持する。
         if (_hasUserResizedWindow || WindowState != WindowState.Normal
             || _spreadController.EnabledPartner(this) is not null) return;
-        ApplyAutomaticImageWindowSize(new Size(page.SourceWidth, page.SourceHeight));
+        ApplyAutomaticImageWindowSize(displaySize);
     }
 
     private void ObserveWindowSizeChange(Size size)
