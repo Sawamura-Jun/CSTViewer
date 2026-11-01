@@ -25,6 +25,8 @@ public partial class MainWindow
         // 元ファイルと画像キャッシュを変更せず、現在のページの表示座標だけを回転する。
         int rotation = session.RotatePage(page.Index, step);
         _viewport.SetImage(new Size(page.SourceWidth, page.SourceHeight), rotation);
+        // 手動リサイズ前は、回転後の縦横比にも起動時と同じ自動サイズ調整を適用する。
+        ResizeWindowForPageOrientation(_viewport.DisplayImageSize);
         RestoreCachedDetail();
         ApplyViewport();
         ScheduleDetailLoad();
