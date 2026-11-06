@@ -33,9 +33,11 @@ internal static class WindowScreen
         return new Size(size.X, size.Y);
     }
 
-    public static Rect WorkArea(Window window)
+    public static Rect WorkArea(Window window, bool alignVisibleFrame = false)
     {
-        return FromPixels(window, WorkAreaPixels(window));
+        Rect bounds = WorkAreaPixels(window);
+        if (alignVisibleFrame) bounds = OuterBoundsForVisibleFrame(window, bounds);
+        return FromPixels(window, bounds);
     }
 
     public static Rect MonitorBounds(Window window)

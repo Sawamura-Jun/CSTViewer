@@ -649,7 +649,7 @@ public partial class MainWindow : Window
         Size imageSize = _viewport.DisplayImageSize;
         Size displayedImageSize = _viewport.ImageToView(_viewport.ImageBounds).Size;
         Point center = WindowScreen.Center(this);
-        Rect workArea = WindowScreen.WorkArea(this);
+        Rect workArea = WindowScreen.WorkArea(this, alignVisibleFrame: wheelZoomScale.HasValue);
         _isFittingWindow = true;
         try
         {
@@ -664,13 +664,7 @@ public partial class MainWindow : Window
                 Rect bounds = wheelZoomScale is { } scale
                     ? WindowSizing.ImageZoomBounds(center, imageSize, scale, chromeSize, minimumSize, workArea)
                     : WindowSizing.FitBounds(center, displayedImageSize, viewportSize, chromeSize, minimumSize, workArea);
-                if (wheelZoomScale.HasValue && bounds.Width >= workArea.Width && bounds.Height >= workArea.Height)
-                {
-                    _hasUserResizedWindow = true;
-                    WindowState = WindowState.Maximized;
-                    UpdateLayout();
-                    break;
-                }
+                if (Width == bounds.Width && Height == bounds.Height && Left == bounds.Left && Top == bounds.Top) break;
                 ApplyWindowBounds(bounds, userRequested: true);
                 UpdateLayout();
             }
@@ -750,7 +744,8 @@ public partial class MainWindow : Window
         }
 
         Point imageAnchor = _viewport.ViewToImage(anchor);
-        Point screenAnchor = ImageViewportCanvas.PointToScreen(anchor);
+        Point screenOrigin = ImageViewportCanvas.PointToScreen(new Point());
+        DpiScale dpi = VisualTreeHelper.GetDpi(ImageViewportCanvas);
         if (!ResizeWindowToDisplayedImage(scale)) return;
 
         double width = ImageViewportCanvas.ActualWidth;
@@ -763,8 +758,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        Point newAnchor = ImageViewportCanvas.PointFromScreen(screenAnchor);
-        newAnchor = new Point(Math.Clamp(newAnchor.X, 0, width), Math.Clamp(newAnchor.Y, 0, height));
+        // マウス位置の端数を保ち、作業領域の上限でウィンドウが動かなくなっても表示がずれないようにする。
+        Vector screenShift = screenOrigin - ImageViewportCanvas.PointToScreen(new Point());
+        DpiScale newDpi = VisualTreeHelper.GetDpi(ImageViewportCanvas);
+        var newAnchor = new Point(
+            Math.Clamp((anchor.X * dpi.DpiScaleX + screenShift.X) / newDpi.DpiScaleX, 0, width),
+            Math.Clamp((anchor.Y * dpi.DpiScaleY + screenShift.Y) / newDpi.DpiScaleY, 0, height));
         _viewport.ZoomToScale(newAnchor, scale, imageAnchor);
     }
 
