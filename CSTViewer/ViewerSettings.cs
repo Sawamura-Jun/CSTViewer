@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.1.1";
+    public const string ApplicationTitle = "CSTViewer v1.1.2";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -79,6 +79,7 @@ public static class ViewerSettings
     public const int StartupRequestPathLimit = StartupSettings.RequestPathLimit;
     public const int StartupRequestByteLimit = StartupSettings.RequestByteLimit;
     public const double WheelZoomFactor = 1.25;
+    public const bool DefaultFitWheelZoomEnabled = false;
     public const double MouseWheelDeltaPerStep = 120;
     public const double MaximumZoomScale = 32;
     public const double FitSnapToleranceRatio = 1.01;

@@ -75,12 +75,27 @@ internal static class WindowSizing
         double padding = Math.Max(0, Math.Min(viewportSize.Width - displayedImageSize.Width,
             viewportSize.Height - displayedImageSize.Height));
         if (padding < ViewerSettings.FitWindowPaddingTolerance) padding = 0;
-        // 浮動小数点の微小誤差だけで、切り上げ寸法が1増えることを防ぐ。
         var size = new Size(
-            Math.Max(minimumSize.Width, Math.Ceiling(Math.Round(displayedImageSize.Width + padding, 6)) + chromeSize.Width),
-            Math.Max(minimumSize.Height, Math.Ceiling(Math.Round(displayedImageSize.Height + padding, 6)) + chromeSize.Height));
+            Math.Max(minimumSize.Width, ImageWindowLength(displayedImageSize.Width + padding, chromeSize.Width)),
+            Math.Max(minimumSize.Height, ImageWindowLength(displayedImageSize.Height + padding, chromeSize.Height)));
         return CenteredBounds(center, size, workArea);
     }
+
+    public static Rect ImageZoomBounds(Point center, Size imageSize, double scale, Size chromeSize,
+        Size minimumSize, Rect workArea)
+    {
+        double maxWidth = Math.Max(minimumSize.Width, workArea.Width);
+        double maxHeight = Math.Max(minimumSize.Height, workArea.Height);
+        // 先に上限に達した辺だけを止め、もう一方の辺は拡げられるようにする。
+        var size = new Size(
+            Math.Clamp(ImageWindowLength(imageSize.Width * scale, chromeSize.Width), minimumSize.Width, maxWidth),
+            Math.Clamp(ImageWindowLength(imageSize.Height * scale, chromeSize.Height), minimumSize.Height, maxHeight));
+        return CenteredBounds(center, size, workArea);
+    }
+
+    // 浮動小数点の微小誤差だけで、切り上げ寸法が1増えることを防ぐ。
+    private static double ImageWindowLength(double imageLength, double chromeLength) =>
+        Math.Ceiling(Math.Round(imageLength, 6)) + chromeLength;
 
     private static Rect CenteredBounds(Point center, Size size, Rect workArea)
     {

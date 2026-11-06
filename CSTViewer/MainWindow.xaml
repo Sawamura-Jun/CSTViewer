@@ -99,18 +99,42 @@
                              Content="Compare all pages using this window as the new image and the nearest other window as the old image. Additions are red; deletions are blue (D)." />
                 </Button.ToolTip>
             </Button>
-            <Button x:Name="FitImageButton" AutomationProperties.Name="Fit image (F)"
-                    MinWidth="0"
-                    FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                    Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
-                    Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
-                    Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}" IsEnabled="False"
-                    Click="FitImageButton_Click">
-                <local:ToolbarIcon Glyph="&#xE9A6;" Shortcut="(F)" IsHitTestVisible="False" />
-                <Button.ToolTip>
-                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Fit the entire image. When already fitted, trim window margins while keeping the zoom level (F)." />
-                </Button.ToolTip>
-            </Button>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="FitImageButton" AutomationProperties.Name="Fit image (F)"
+                        MinWidth="0"
+                        FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+                        Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
+                        Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
+                        Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}" IsEnabled="False"
+                        Click="FitImageButton_Click">
+                    <local:ToolbarIcon Glyph="&#xE9A6;" Shortcut="(F)" IsHitTestVisible="False" />
+                    <Button.ToolTip>
+                        <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Fit the entire image. When already fitted, trim window margins while keeping the zoom level (F)." />
+                    </Button.ToolTip>
+                </Button>
+                <ToggleButton x:Name="FitWheelZoomButton" AutomationProperties.Name="Resize window with wheel zoom"
+                              MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                              FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+                              Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
+                              Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}">
+                    <local:ToolbarIcon Glyph="&#xE8A7;" IsHitTestVisible="False">
+                        <local:ToolbarIcon.Style>
+                            <Style TargetType="{x:Type local:ToolbarIcon}">
+                                <Style.Triggers>
+                                    <!-- 選択時はFluentの前景色をアイコンに直接適用する。 -->
+                                    <DataTrigger Binding="{Binding IsChecked, ElementName=FitWheelZoomButton}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource ToggleButtonForegroundChecked}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </local:ToolbarIcon.Style>
+                    </local:ToolbarIcon>
+                    <ToggleButton.ToolTip>
+                        <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+                                 Content="Resize the window with the mouse wheel and keep zooming after the window reaches the screen edges." />
+                    </ToggleButton.ToolTip>
+                </ToggleButton>
+            </StackPanel>
             <Button x:Name="RotateRightButton" AutomationProperties.Name="Rotate 90 degrees right (R)"
                     MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
                     FontSize="{x:Static local:ViewerSettings.UiFontSize}"

@@ -42,6 +42,8 @@ public partial class MainWindow : Window
     private long _viewRevision;
     private long _fileNavigationRevision;
 
+    internal bool IsFitWheelZoomEnabled => FitWheelZoomButton.IsChecked == true;
+
     public MainWindow() : this(ViewerSettings.PerformanceLogPath)
     {
     }
@@ -53,6 +55,8 @@ public partial class MainWindow : Window
         _directoryImageCache = directoryImageCache ?? new DirectoryImageListCache();
         _spreadController = spreadController ?? SpreadController.ForDispatcher(Dispatcher);
         InitializeComponent();
+        FitWheelZoomButton.IsChecked = (Application.Current as App)?.LastClosedFitWheelZoomEnabled
+            ?? ViewerSettings.DefaultFitWheelZoomEnabled;
         InitializeCropOverlay();
         _spreadController.Register(this);
         UpdateSpreadControls();
@@ -638,10 +642,11 @@ public partial class MainWindow : Window
         ScheduleDetailLoad();
     }
 
-    private bool ResizeWindowToDisplayedImage()
+    private bool ResizeWindowToDisplayedImage(double? wheelZoomScale = null)
     {
         var viewportSize = new Size(ImageViewportCanvas.ActualWidth, ImageViewportCanvas.ActualHeight);
         if (viewportSize.Width <= 0 || viewportSize.Height <= 0) return false;
+        Size imageSize = _viewport.DisplayImageSize;
         Size displayedImageSize = _viewport.ImageToView(_viewport.ImageBounds).Size;
         Point center = WindowScreen.Center(this);
         Rect workArea = WindowScreen.WorkArea(this);
@@ -655,8 +660,17 @@ public partial class MainWindow : Window
             {
                 var chromeSize = new Size(Math.Max(0, ActualWidth - ImageViewportCanvas.ActualWidth),
                     Math.Max(0, ActualHeight - ImageViewportCanvas.ActualHeight));
-                Rect bounds = WindowSizing.FitBounds(center, displayedImageSize, viewportSize,
-                    chromeSize, new Size(MinWidth, MinHeight), workArea);
+                var minimumSize = new Size(MinWidth, MinHeight);
+                Rect bounds = wheelZoomScale is { } scale
+                    ? WindowSizing.ImageZoomBounds(center, imageSize, scale, chromeSize, minimumSize, workArea)
+                    : WindowSizing.FitBounds(center, displayedImageSize, viewportSize, chromeSize, minimumSize, workArea);
+                if (wheelZoomScale.HasValue && bounds.Width >= workArea.Width && bounds.Height >= workArea.Height)
+                {
+                    _hasUserResizedWindow = true;
+                    WindowState = WindowState.Maximized;
+                    UpdateLayout();
+                    break;
+                }
                 ApplyWindowBounds(bounds, userRequested: true);
                 UpdateLayout();
             }
@@ -700,20 +714,58 @@ public partial class MainWindow : Window
             ApplyWindowBounds(bounds, userRequested: true);
             return;
         }
-        if (!_viewport.HasImage || _isLoading)
-        {
-            return;
-        }
+        if (!_viewport.HasImage) return;
 
         double previousScale = _viewport.Scale;
-        _viewport.Zoom(anchor, delta);
-        if (_viewport.Scale == previousScale)
+        bool wasFit = _viewport.IsFitMode;
+        if (IsFitWheelZoomEnabled)
         {
-            return;
+            ZoomWithWindow(anchor, delta);
         }
+        else
+        {
+            _viewport.Zoom(anchor, delta);
+        }
+        if (_viewport.Scale == previousScale && _viewport.IsFitMode == wasFit) return;
+
         BeginZoomInteraction();
         ApplyViewport();
         ScheduleDetailLoad();
+    }
+
+    private void ZoomWithWindow(Point anchor, int delta)
+    {
+        if (ImageViewportCanvas.ActualWidth <= 0 || ImageViewportCanvas.ActualHeight <= 0) return;
+        double scale = _viewport.GetWheelZoomScale(delta);
+        if (delta > 0 && scale == _viewport.Scale) return;
+        StopPanning();
+        Size imageSize = _viewport.DisplayImageSize;
+        if (WindowState == WindowState.Maximized && (delta > 0
+            || (imageSize.Width * scale >= ImageViewportCanvas.ActualWidth
+                && imageSize.Height * scale >= ImageViewportCanvas.ActualHeight)))
+        {
+            // 最大化を維持する間は、スクリーン座標への変換でマウス位置が丸められるのを避ける。
+            _viewport.ZoomToScale(anchor, scale);
+            return;
+        }
+
+        Point imageAnchor = _viewport.ViewToImage(anchor);
+        Point screenAnchor = ImageViewportCanvas.PointToScreen(anchor);
+        if (!ResizeWindowToDisplayedImage(scale)) return;
+
+        double width = ImageViewportCanvas.ActualWidth;
+        double height = ImageViewportCanvas.ActualHeight;
+        // DPIの丸めで生じる差だけなら、画像全体が見えるようにフィットする。
+        if (imageSize.Width * scale <= width + ViewerSettings.FitWindowPaddingTolerance
+            && imageSize.Height * scale <= height + ViewerSettings.FitWindowPaddingTolerance)
+        {
+            _viewport.Fit();
+            return;
+        }
+
+        Point newAnchor = ImageViewportCanvas.PointFromScreen(screenAnchor);
+        newAnchor = new Point(Math.Clamp(newAnchor.X, 0, width), Math.Clamp(newAnchor.Y, 0, height));
+        _viewport.ZoomToScale(newAnchor, scale, imageAnchor);
     }
 
     private void ApplyWindowBounds(Rect bounds, bool userRequested = false)

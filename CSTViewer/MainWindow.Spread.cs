@@ -59,6 +59,8 @@ public partial class MainWindow
                 (int)outer.Left, (int)outer.Top, (int)outer.Width, (int)outer.Height, SwpNoZOrder | SwpNoActivate);
             UpdateLayout();
             _spreadWindowPlacement.Capture(normalSize, new Size(ActualWidth, ActualHeight));
+            // 左右配置後のホイールズームでウィンドウの寸法が変わらないようにする。
+            FitWheelZoomButton.IsChecked = false;
             // 左右への配置時はウィンドウ寸法を保ち、画像だけを全体表示にする。
             FitImageLocally(resizeWindow: false);
         }

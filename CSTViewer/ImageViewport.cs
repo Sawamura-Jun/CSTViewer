@@ -21,8 +21,8 @@ internal sealed class ImageViewport
     public Rect VisibleSourceBounds => CanTransform
         ? Rect.Intersect(ViewToImage(new Rect(_viewportSize)), ImageBounds) : Rect.Empty;
     private bool CanTransform => HasImage && _viewportSize.Width > 0 && _viewportSize.Height > 0;
-    private double FitScale => Math.Min(_viewportSize.Width / DisplayImageSize.Width,
-        _viewportSize.Height / DisplayImageSize.Height);
+    private double FitScale => Math.Min(ViewerSettings.MaximumZoomScale,
+        Math.Min(_viewportSize.Width / DisplayImageSize.Width, _viewportSize.Height / DisplayImageSize.Height));
 
     // 元画像を正の座標へ90度単位で回してから、表示倍率と位置を適用する。
     private Matrix RotationMatrix => RotationQuarterTurns switch
@@ -109,6 +109,9 @@ internal sealed class ImageViewport
         }
     }
 
+    public double GetWheelZoomScale(int wheelDelta) => Math.Min(ViewerSettings.MaximumZoomScale,
+        Scale * Math.Pow(ViewerSettings.WheelZoomFactor, wheelDelta / ViewerSettings.MouseWheelDeltaPerStep));
+
     public void Zoom(Point anchor, int wheelDelta)
     {
         if (!CanTransform || wheelDelta == 0)
@@ -116,25 +119,26 @@ internal sealed class ImageViewport
             return;
         }
 
-        double factor = Math.Pow(ViewerSettings.WheelZoomFactor,
-            wheelDelta / ViewerSettings.MouseWheelDeltaPerStep);
-        double targetScale = Math.Clamp(Scale * factor, FitScale,
-            Math.Max(FitScale, ViewerSettings.MaximumZoomScale));
+        double targetScale = GetWheelZoomScale(wheelDelta);
         if (wheelDelta < 0 && targetScale <= FitScale * ViewerSettings.FitSnapToleranceRatio)
         {
             Fit();
             return;
         }
 
-        if (targetScale == Scale)
-        {
-            return;
-        }
+        ZoomToScale(anchor, targetScale);
+    }
+
+    public void ZoomToScale(Point anchor, double targetScale, Point? imageAnchor = null)
+    {
+        if (!CanTransform) return;
+        if (targetScale <= FitScale) { Fit(); return; }
+        if (targetScale == Scale && imageAnchor is null) return;
 
         // マウス直下の画像座標が動かないよう、倍率の変更に合わせて位置を補正する。
-        double ratio = targetScale / Scale;
-        Offset = new Point(anchor.X - (anchor.X - Offset.X) * ratio,
-            anchor.Y - (anchor.Y - Offset.Y) * ratio);
+        Point displayAnchor = imageAnchor is { } sourcePoint ? RotationMatrix.Transform(sourcePoint)
+            : new Point((anchor.X - Offset.X) / Scale, (anchor.Y - Offset.Y) / Scale);
+        Offset = new Point(anchor.X - displayAnchor.X * targetScale, anchor.Y - displayAnchor.Y * targetScale);
         Scale = targetScale;
         IsFitMode = false;
         ClampOffset();
@@ -169,8 +173,8 @@ internal sealed class ImageViewport
             Fit();
             return true;
         }
-        Scale = Math.Clamp(FitScale * Math.Max(1, state.ZoomRatio), FitScale,
-            Math.Max(FitScale, ViewerSettings.MaximumZoomScale));
+        if (!double.IsFinite(state.ZoomRatio)) return false;
+        Scale = Math.Min(ViewerSettings.MaximumZoomScale, FitScale * Math.Max(1, state.ZoomRatio));
         Point center = RotationMatrix.Transform(new Point(Math.Clamp(state.Center.X, 0, 1) * _imageSize.Width,
             Math.Clamp(state.Center.Y, 0, 1) * _imageSize.Height));
         Offset = new Point(_viewportSize.Width / 2 - center.X * Scale,

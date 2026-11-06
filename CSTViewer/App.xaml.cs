@@ -16,6 +16,8 @@ public partial class App : Application
     private bool _exiting;
     private readonly string[]? _startupPaths;
 
+    internal bool LastClosedFitWheelZoomEnabled { get; private set; } = ViewerSettings.DefaultFitWheelZoomEnabled;
+
     public App()
     {
     }
@@ -118,6 +120,7 @@ public partial class App : Application
 
     internal void ReleaseClosedWindow(MainWindow window)
     {
+        LastClosedFitWheelZoomEnabled = window.IsFitWheelZoomEnabled;
         // Application.MainWindowが閉じた画面を保持すると、常駐中に回収されなくなる。
         if (ReferenceEquals(MainWindow, window))
             MainWindow = Windows.OfType<MainWindow>().FirstOrDefault(other => !ReferenceEquals(other, window));
