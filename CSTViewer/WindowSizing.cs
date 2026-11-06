@@ -36,8 +36,23 @@ internal static class WindowSizing
         // 極端な縦横比でも、既存の最小寸法とタスクバーを除く画面内の制限を守る。
         width = Math.Clamp(width, minimumSize.Width, maxWidth);
         height = Math.Clamp(height, minimumSize.Height, maxHeight);
-        return CenteredBounds(new Point(workArea.Left + workArea.Width / 2, workArea.Top + workArea.Height / 2),
-            new Size(width, height), workArea);
+        return StartupPlacement(new Size(width, height), workArea);
+    }
+
+    public static Rect StartupPlacement(Size size, Rect workArea, int index = 0)
+    {
+        Rect bounds = CenteredBounds(new Point(workArea.Left + workArea.Width / 2, workArea.Top + workArea.Height / 2),
+            size, workArea);
+        if (index == 0) return bounds;
+
+        double rightSpace = Math.Max(0, workArea.Right - bounds.Right);
+        double bottomSpace = Math.Max(0, workArea.Bottom - bounds.Bottom);
+        double step = ViewerSettings.StartupWindowCascadeStep;
+        // 片方が画面端に達してももう一方をずらし、両方が端に達したら次は中央に戻す。
+        int slotCount = 1 + (int)Math.Ceiling(Math.Max(rightSpace, bottomSpace) / step);
+        double offset = (index % slotCount) * step;
+        bounds.Offset(Math.Min(offset, rightSpace), Math.Min(offset, bottomSpace));
+        return bounds;
     }
 
     public static Rect WheelBounds(Rect currentBounds, Size viewportSize, Size minimumSize, Rect workArea, int delta)

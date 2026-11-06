@@ -24,6 +24,8 @@ public static class ViewerSettings
     // 起動先モニター全体に対する、枠やツールバーを含むウィンドウ寸法の割合。
     public const double StartupLandscapeWindowWidthRatio = 2.0 / 3.0;
     public const double StartupPortraitWindowHeightRatio = 9.3 / 10.0;
+    // 追加起動したウィンドウを右下へずらす間隔（DIP）。
+    public const double StartupWindowCascadeStep = 24;
     public const double CtrlWheelWindowScaleFactor = 1.12;
     // WPFの文字サイズはDIP単位のため、9pt × 96 / 72 = 12を指定する。
     public const double UiFontSize = 12;

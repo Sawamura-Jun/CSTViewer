@@ -14,6 +14,14 @@ public partial class MainWindow
         ApplyAutomaticImageWindowSize(new Size(ViewerSettings.WindowWidth, ViewerSettings.WindowHeight));
     }
 
+    internal void CascadeStartupPosition(int index)
+    {
+        Rect bounds = WindowSizing.StartupPlacement(new Size(Width, Height), WindowScreen.WorkArea(this), index);
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = bounds.Left;
+        Top = bounds.Top;
+    }
+
     private void ApplyAutomaticImageWindowSize(Size imageSize)
     {
         _isApplyingAutomaticWindowSize = true;

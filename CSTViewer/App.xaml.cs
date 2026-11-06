@@ -14,6 +14,7 @@ public partial class App : Application
     private bool _startupReady;
     private bool _processingRequests;
     private bool _exiting;
+    private int _nextStartupWindowIndex;
     private readonly string[]? _startupPaths;
 
     internal bool LastClosedFitWheelZoomEnabled { get; private set; } = ViewerSettings.DefaultFitWheelZoomEnabled;
@@ -111,6 +112,11 @@ public partial class App : Application
             if (path.Length > 0) await window.PrepareStartupImageAsync(path);
             else window.PrepareEmptyStartup();
             if (_exiting) { window.Close(); return; }
+            // 起動要求が分かれて届いても位置をずらし、すべて閉じた後は中央から再開する。
+            if (!Windows.OfType<MainWindow>().Any(other => other != window && other.IsVisible))
+                _nextStartupWindowIndex = 0;
+            if (_nextStartupWindowIndex > 0) window.CascadeStartupPosition(_nextStartupWindowIndex);
+            _nextStartupWindowIndex++;
             window.Show();
             window.Activate();
             // 複数ページの先読み中も、別のTIFFを新しい画面で開けるようにする。
