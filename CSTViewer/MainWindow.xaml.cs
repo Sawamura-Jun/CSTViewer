@@ -268,7 +268,7 @@ public partial class MainWindow : Window
         ViewerSettings.EnablePerformanceLogging ? new ImageLoadMeasurement(session.Path)
         {
             SessionId = session.Id, Operation = operation,
-            Backend = ImageLoader.IsTiff(session.Path) ? "NetVips" : "WPF"
+            Backend = ImageLoader.GetBackend(session.Path)
         } : null;
 
     private void WriteMeasurement(ImageLoadMeasurement? measurement, string outcome, Exception? exception = null)

@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.1.4";
+    public const string ApplicationTitle = "CSTViewer v1.1.5";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -117,7 +117,7 @@ public static class ViewerSettings
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CSTViewer", "Logs", "image-load-performance.jsonl");
     public const string ImageFileFilter =
-        "Image files|*.tif;*.tiff;*.png;*.jpg;*.jpeg;*.bmp;*.gif|TIFF images|*.tif;*.tiff|All files|*.*";
+        "Image files|*.tif;*.tiff;*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|TIFF images|*.tif;*.tiff|All files|*.*";
 
     internal static readonly IReadOnlySet<string> SupportedImageExtensions = StartupSettings.SupportedImageExtensions;
 }

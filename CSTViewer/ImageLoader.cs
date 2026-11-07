@@ -9,7 +9,7 @@ namespace CSTViewer;
 
 internal static class ImageLoader
 {
-    // Lazyは初期化をTIFFのワーカー処理まで遅らせ、複数スレッドでも一度だけ実行する。
+    // Lazyは初期化をlibvipsが必要になるまで遅らせ、複数スレッドでも一度だけ実行する。
     private static readonly Lazy<bool> VipsInitialized = new(() =>
     {
         // 操作キャッシュはファイルを保持するため、表示画像だけを別途キャッシュする。
@@ -25,6 +25,10 @@ internal static class ImageLoader
     public static bool IsTiff(string path) => Path.GetExtension(path).Equals(".tif", StringComparison.OrdinalIgnoreCase)
         || Path.GetExtension(path).Equals(".tiff", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsWebp(string path) => Path.GetExtension(path).Equals(".webp", StringComparison.OrdinalIgnoreCase);
+
+    internal static string GetBackend(string path) => IsTiff(path) || IsWebp(path) ? "NetVips" : "WPF";
+
     public static Size ReadSourceSize(string path)
     {
         // 起動時の寸法決定では全画素を展開せず、先頭ページのヘッダーだけを読む。
@@ -33,6 +37,11 @@ internal static class ImageLoader
             _ = VipsInitialized.Value;
             using var source = VipsImage.Tiffload(path, page: 0, n: 1, autorotate: true,
                 access: Enums.Access.Sequential, revalidate: true);
+            return new Size(source.Width, source.Height);
+        }
+        if (IsWebp(path))
+        {
+            using var source = OpenWebp(path);
             return new Size(source.Width, source.Height);
         }
 
@@ -73,12 +82,16 @@ internal static class ImageLoader
         {
             measurement.FileSizeBytes = fileLength;
             measurement.PageIndex = pageIndex;
-            measurement.Backend = IsTiff(path) ? "NetVips" : "WPF";
+            measurement.Backend = GetBackend(path);
         }
         measurement?.StartStage("DecodeAndRead");
-        ImagePage result = IsTiff(path)
-            ? LoadTiffPage(path, pageIndex, decodeSize, measurement, cancellationToken)
-            : LoadOtherImage(path, pageIndex, measurement, cancellationToken);
+        ImagePage result;
+        if (IsTiff(path))
+            result = LoadTiffPage(path, pageIndex, decodeSize, measurement, cancellationToken);
+        else if (IsWebp(path))
+            result = LoadWebpPage(path, pageIndex, measurement, cancellationToken);
+        else
+            result = LoadOtherImage(path, pageIndex, measurement, cancellationToken);
         measurement?.FinishStage();
         return result;
     }
@@ -94,7 +107,7 @@ internal static class ImageLoader
         double scale = Math.Min(1, Math.Min(decodeSize.Width / source.Width, decodeSize.Height / source.Height));
         // 遅延評価により、縮小結果だけをWPFへ実体化する。元画像全体のBitmapは作らない。
         using var resized = scale < 1 ? source.Resize(scale, kernel: Enums.Kernel.Linear) : source.Copy();
-        var bitmap = CreateTiffBitmap(resized, measurement, cancellationToken);
+        var bitmap = CreateVipsBitmap(resized, measurement, cancellationToken);
         SetMetadata(measurement, bitmap, source.Width, source.Height, pageCount);
         measurement?.StartStage("FileClose");
         return new ImagePage(pageIndex, pageCount, source.Width, source.Height, bitmap);
@@ -134,7 +147,7 @@ internal static class ImageLoader
                 request.Rectangle.Width, request.Rectangle.Height);
             using var resized = request.DecodeScale < 1
                 ? cropped.Resize(request.DecodeScale, kernel: Enums.Kernel.Linear) : cropped.Copy();
-            var bitmap = CreateTiffBitmap(resized, measurement, cancellationToken);
+            var bitmap = CreateVipsBitmap(resized, measurement, cancellationToken);
             int pageCount = source.GetTypeOf("n-pages") != 0 ? (int)source.Get("n-pages") : 1;
             SetMetadata(measurement, bitmap, source.Width, source.Height, pageCount);
             measurement?.StartStage("UiDispatch");
@@ -167,7 +180,8 @@ internal static class ImageLoader
         CancellationToken cancellationToken = default) => Task.Run(() =>
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!IsTiff(path))
+        bool isTiff = IsTiff(path);
+        if (!isTiff && !IsWebp(path))
         {
             var page = LoadOtherImage(path, pageIndex, null, cancellationToken);
             ValidateCrop(rectangle, page.SourceWidth, page.SourceHeight);
@@ -177,11 +191,13 @@ internal static class ImageLoader
         }
         _ = VipsInitialized.Value;
         // Randomは任意の領域を読む指定。プレビューを拡大せず、元のページから切り抜く。
-        using var source = VipsImage.Tiffload(path, page: pageIndex, n: 1, autorotate: true,
-            access: Enums.Access.Random, revalidate: true);
+        using var source = isTiff
+            ? VipsImage.Tiffload(path, page: pageIndex, n: 1, autorotate: true,
+                access: Enums.Access.Random, revalidate: true)
+            : OpenWebp(path, pageIndex);
         ValidateCrop(rectangle, source.Width, source.Height);
         using var cropped = source.Crop(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
-        return CreateTiffBitmap(cropped, null, cancellationToken);
+        return CreateVipsBitmap(cropped, null, cancellationToken);
     }, cancellationToken);
 
     public static Task SaveCropAsync(string path, int pageIndex, Int32Rect rectangle, string outputPath,
@@ -225,6 +241,15 @@ internal static class ImageLoader
                 using var cropped = source.Crop(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
                 // JPEGは同じDCT圧縮とプログレッシブ設定で再エンコードする。
                 cropped.Jpegsave(temporaryPath, interlace: progressive, q: ViewerSettings.CropJpegQuality);
+            }
+            else if (extension == ".webp")
+            {
+                using var source = OpenWebp(path, pageIndex);
+                ValidateCrop(rectangle, source.Width, source.Height);
+                using var cropped = source.Crop(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+                cancellationToken.ThrowIfCancellationRequested();
+                // 再圧縮による劣化を避け、完全に透明な画素の色も保持する。
+                cropped.Webpsave(temporaryPath, lossless: true, exact: true, pageHeight: cropped.Height);
             }
             else
             {
@@ -303,7 +328,7 @@ internal static class ImageLoader
             throw new ArgumentOutOfRangeException(nameof(rectangle), "The selection is outside the image bounds.");
     }
 
-    private static BitmapSource CreateTiffBitmap(VipsImage image, ImageLoadMeasurement? measurement,
+    private static BitmapSource CreateVipsBitmap(VipsImage image, ImageLoadMeasurement? measurement,
         CancellationToken cancellationToken)
     {
         // Python版と同じ順序で8bit化してから、必要な色空間だけsRGBへ変換する。
@@ -358,7 +383,7 @@ internal static class ImageLoader
         ImageLoadMeasurement? measurement, CancellationToken cancellationToken)
     {
         if (pageIndex != 0) throw new ArgumentOutOfRangeException(nameof(pageIndex));
-        // TIFF以外は従来のWPF対応形式とDPI情報を維持する。
+        // WPFで読み込む形式は元のDPI情報を維持する。
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var bitmap = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
         cancellationToken.ThrowIfCancellationRequested();
@@ -367,6 +392,24 @@ internal static class ImageLoader
         SetMetadata(measurement, bitmap, bitmap.PixelWidth, bitmap.PixelHeight, 1);
         measurement?.StartStage("FileClose");
         return new ImagePage(0, 1, bitmap.PixelWidth, bitmap.PixelHeight, bitmap);
+    }
+
+    private static ImagePage LoadWebpPage(string path, int pageIndex,
+        ImageLoadMeasurement? measurement, CancellationToken cancellationToken)
+    {
+        using var source = OpenWebp(path, pageIndex);
+        var bitmap = CreateVipsBitmap(source, measurement, cancellationToken);
+        SetMetadata(measurement, bitmap, source.Width, source.Height, 1);
+        measurement?.StartStage("FileClose");
+        return new ImagePage(0, 1, source.Width, source.Height, bitmap);
+    }
+
+    private static VipsImage OpenWebp(string path, int pageIndex = 0)
+    {
+        if (pageIndex != 0) throw new ArgumentOutOfRangeException(nameof(pageIndex));
+        InitializeVips();
+        // GIFと同様、アニメーションの場合は先頭フレームを表示・切り抜きに使う。
+        return VipsImage.Webpload(path, page: 0, n: 1, access: Enums.Access.Sequential, revalidate: true);
     }
 
     private static void SetMetadata(ImageLoadMeasurement? measurement, BitmapSource bitmap,

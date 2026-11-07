@@ -269,7 +269,7 @@
                             VerticalAlignment="Center" IsHitTestVisible="False">
                     <TextBlock Text="Drag and drop an image"
                                HorizontalAlignment="Center" />
-                    <TextBlock Text="TIFF / PNG / JPEG / BMP / GIF" Foreground="#9A9A9A"
+                    <TextBlock Text="TIFF / PNG / JPEG / BMP / GIF / WebP" Foreground="#9A9A9A"
                                Margin="0,12,0,0" HorizontalAlignment="Center" />
                 </StackPanel>
                 <Border x:Name="DropImageOverlay" Visibility="Collapsed" Margin="4"

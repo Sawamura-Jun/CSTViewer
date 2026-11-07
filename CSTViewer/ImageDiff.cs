@@ -100,6 +100,7 @@ internal static class ImageDiff
             ".tif" or ".tiff" => VipsImage.Tiffload(path, page: index, n: 1, autorotate: true,
                 access: Enums.Access.Sequential, revalidate: true),
             ".gif" => VipsImage.Gifload(path, page: index, n: 1, access: Enums.Access.Sequential, revalidate: true),
+            ".webp" => VipsImage.Webpload(path, page: index, n: 1, access: Enums.Access.Sequential, revalidate: true),
             ".jpg" or ".jpeg" => VipsImage.Jpegload(path, autorotate: true, access: Enums.Access.Sequential, revalidate: true),
             _ => VipsImage.NewFromFile(path, access: Enums.Access.Sequential, revalidate: true)
         };

@@ -11,6 +11,6 @@ internal static class StartupSettings
     public static readonly IReadOnlySet<string> SupportedImageExtensions =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp", ".gif"
+            ".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"
         };
 }

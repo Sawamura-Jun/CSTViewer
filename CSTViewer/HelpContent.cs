@@ -12,7 +12,8 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             new("Toolbar", "Button", "Shortcut",
             [
                 (nameof(MainWindow.SaveImageButton), "Save", "—", "Copy the entire open image file to the desktop."),
-                (nameof(MainWindow.OpenImageButton), "Open", "—", "Choose an image file to open."),
+                (nameof(MainWindow.OpenImageButton), "Open", "—",
+                    "Choose a TIFF, PNG, JPEG, BMP, GIF, or WebP image. Animated GIF and WebP files display the first frame."),
                 (nameof(MainWindow.NewWindowButton), "New window", "Ctrl+Shift+N", "Open another viewer window."),
                 (nameof(MainWindow.SpreadLayoutButton), "Sync", "S",
                     "Arrange two windows side by side and sync actions such as zooming and page navigation. Press again to turn sync off."),
@@ -34,7 +35,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             [
                 ("Select", "Right-drag on the image to select the area to crop."),
                 ("Adjust", "Left-drag inside the selection to move it, or drag an edge or corner to resize it."),
-                ("Save", "Left-click inside the selection to save the crop and copy it to the clipboard.")
+                ("Save", "Left-click inside the selection to save the crop and copy it to the clipboard. WebP crops are saved as lossless WebP.")
             ],
                 "Press Ctrl+C to copy the selection to the clipboard, or Esc to clear it.",
                 " specifies the destination for crops and comparison images."),
@@ -51,7 +52,8 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             new("ツールバー", "ボタン", "ショートカット",
             [
                 (nameof(MainWindow.SaveImageButton), "保存", "—", "開いている画像ファイルを丸ごとデスクトップにコピーします。"),
-                (nameof(MainWindow.OpenImageButton), "開く", "—", "表示する画像ファイルを選びます。"),
+                (nameof(MainWindow.OpenImageButton), "開く", "—",
+                    "TIFF、PNG、JPEG、BMP、GIF、WebPの画像を選びます。アニメーションGIFとWebPは先頭フレームを表示します。"),
                 (nameof(MainWindow.NewWindowButton), "新しいウィンドウ", "Ctrl+Shift+N", "別のビューアーウィンドウを開きます。"),
                 (nameof(MainWindow.SpreadLayoutButton), "同期", "S",
                     "2つのウィンドウを横に並べ、ズームやページ移動を同期します。もう一度押すと解除します。"),
@@ -73,7 +75,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             [
                 ("選ぶ", "画像を右ドラッグして、切り抜く範囲を選びます。"),
                 ("調整する", "選択枠の内側を左ドラッグすると移動し、枠の辺や角を左ドラッグするとサイズが変わります。"),
-                ("保存する", "選択枠の内側を左クリックすると、切り抜きを保存し、クリップボードにもコピーします。")
+                ("保存する", "選択枠の内側を左クリックすると、切り抜きを保存し、クリップボードにもコピーします。WebPの切り抜きは可逆圧縮のWebPで保存します。")
             ],
                 "Ctrl+C でクリップボードにコピーし、Esc で選択を解除します。",
                 " 欄では、切り抜きや差分画像の保存先を指定できます。"),
