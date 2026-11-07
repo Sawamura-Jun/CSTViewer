@@ -19,7 +19,7 @@ internal static class CropSavePath
         }
     }
 
-    public static string Resolve(string sourcePath, string? text, string? timestamp = null)
+    public static string Resolve(string sourcePath, string? text, string? timestamp = null, string? baseDirectory = null)
     {
         string source = Path.GetFullPath(sourcePath);
         string extension = Path.GetExtension(source);
@@ -35,8 +35,10 @@ internal static class CropSavePath
             match => Environment.GetEnvironmentVariable(match.Groups["name"].Value) ?? match.Value);
         if (expanded == "~" || expanded.StartsWith("~\\", StringComparison.Ordinal) || expanded.StartsWith("~/", StringComparison.Ordinal))
             expanded = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + expanded[1..];
-        if (raw.EndsWith('\\') || raw.EndsWith('/') || Directory.Exists(expanded))
-            return Path.GetFullPath(Path.Combine(expanded, automaticName));
+        baseDirectory ??= Environment.CurrentDirectory;
+        string fullPath = Path.GetFullPath(expanded, baseDirectory);
+        if (raw.EndsWith('\\') || raw.EndsWith('/') || Directory.Exists(fullPath))
+            return Path.Combine(fullPath, automaticName);
 
         string? parent = Path.GetDirectoryName(expanded);
         if (string.IsNullOrEmpty(parent) || parent == ".") expanded = Path.Combine(Path.GetDirectoryName(source)!, Path.GetFileName(expanded));
@@ -45,6 +47,6 @@ internal static class CropSavePath
         if (!currentExtension.Equals(extension, StringComparison.OrdinalIgnoreCase)
             && !(tiffAlias && (currentExtension.Equals(".tif", StringComparison.OrdinalIgnoreCase) || currentExtension.Equals(".tiff", StringComparison.OrdinalIgnoreCase))))
             expanded = Path.ChangeExtension(expanded, extension);
-        return Path.GetFullPath(expanded);
+        return Path.GetFullPath(expanded, baseDirectory);
     }
 }

@@ -170,7 +170,7 @@ public partial class MainWindow
         string text = CropSavePathTextBox.Text;
         return ExecuteCropAsync(async (session, page, rectangle) =>
         {
-            string outputPath = CropSavePath.Resolve(session.Path, text);
+            string outputPath = CropSavePath.Resolve(session.Path, text, baseDirectory: App.RelativeSavePathBaseDirectory);
             await session.SaveCropAsync(page.Index, rectangle, outputPath);
             string savedPaths = outputPath;
             CropPng png;

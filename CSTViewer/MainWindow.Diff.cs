@@ -28,7 +28,7 @@ public partial class MainWindow
         string target;
         try
         {
-            target = DiffSavePath.Resolve(newPath, CropSavePathTextBox.Text);
+            target = DiffSavePath.Resolve(newPath, CropSavePathTextBox.Text, App.RelativeSavePathBaseDirectory);
             DiffSavePath.Validate(oldPath, newPath, target);
         }
         catch (Exception exception) when (IsImageLoadException(exception))

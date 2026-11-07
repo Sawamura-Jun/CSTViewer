@@ -16,8 +16,10 @@ public partial class App : Application
     private bool _exiting;
     private int _nextStartupWindowIndex;
     private readonly string[]? _startupPaths;
+    private string? _startupWorkingDirectory;
 
     internal bool LastClosedFitWheelZoomEnabled { get; private set; } = ViewerSettings.DefaultFitWheelZoomEnabled;
+    internal static string? RelativeSavePathBaseDirectory => (Current as App)?._startupWorkingDirectory;
 
     public App()
     {
@@ -38,7 +40,8 @@ public partial class App : Application
         // 計測ツールなどがRun(window)でウィンドウを指定した場合は、その画面を使う。
         if (MainWindow is not null) return;
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        string[] paths = _startupPaths ?? StartupImagePaths.Resolve(e.Args, Environment.CurrentDirectory);
+        string workingDirectory = Environment.CurrentDirectory;
+        string[] paths = _startupPaths ?? StartupImagePaths.Resolve(e.Args, workingDirectory);
         if (_instanceBroker is null)
         {
             // 計測ツールなどがAppを直接作成した場合も、従来の単一起動を維持する。
@@ -63,6 +66,9 @@ public partial class App : Application
                 }
             }
         }
+        // 相対パスの保存先には起動元を使い、常駐プロセスはそのフォルダーをロックしないようにする。
+        _startupWorkingDirectory = workingDirectory;
+        Directory.SetCurrentDirectory(Environment.SystemDirectory);
         _trayIcon = new TrayIcon(() => QueueOpenRequest([]), ExitApplication);
         // 同時起動の要求より先に、最初の起動で指定した画像を表示する。
         await OpenWindowsAsync(paths);

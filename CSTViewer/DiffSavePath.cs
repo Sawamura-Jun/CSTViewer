@@ -4,11 +4,11 @@ namespace CSTViewer;
 
 internal static class DiffSavePath
 {
-    public static string Resolve(string newImagePath, string? text)
+    public static string Resolve(string newImagePath, string? text, string? baseDirectory = null)
     {
         // 保存先欄の展開規則を共用し、差分だけは元形式によらずTIFFへ保存する。
         string source = ImageLoader.IsTiff(newImagePath) ? newImagePath : Path.ChangeExtension(newImagePath, ".tif");
-        return CropSavePath.Resolve(source, text, "dif");
+        return CropSavePath.Resolve(source, text, "dif", baseDirectory);
     }
 
     public static void Validate(string oldImagePath, string newImagePath, string outputPath)
