@@ -81,7 +81,7 @@
                           Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                           Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                           Click="SpreadLayoutButton_Click">
-                <local:ToolbarIcon Glyph="&#xE895;" Shortcut="(S)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE895;" IsHitTestVisible="False" />
                 <ToggleButton.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                              Content="Arrange two windows on the same monitor side by side and sync them. Press again to turn sync off (S)." />
@@ -93,7 +93,7 @@
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     Click="DiffImageButton_Click">
-                <local:ToolbarIcon Glyph="&#xE89A;" Shortcut="(D)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE89A;" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                              Content="Compare all pages using this window as the new image and the nearest other window as the old image. Additions are red; deletions are blue (D)." />
@@ -107,12 +107,12 @@
                         Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                         Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}" IsEnabled="False"
                         Click="FitImageButton_Click">
-                    <local:ToolbarIcon Glyph="&#xE9A6;" Shortcut="(F)" IsHitTestVisible="False" />
+                    <local:ToolbarIcon Glyph="&#xE9A6;" IsHitTestVisible="False" />
                     <Button.ToolTip>
                         <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Fit the entire image. When already fitted, trim window margins while keeping the zoom level (F)." />
                     </Button.ToolTip>
                 </Button>
-                <ToggleButton x:Name="FitWheelZoomButton" AutomationProperties.Name="Resize window with wheel zoom"
+                <ToggleButton x:Name="FitWheelZoomButton" AutomationProperties.Name="Resize window with wheel zoom (A)"
                               MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
                               FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                               Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
@@ -131,7 +131,7 @@
                     </local:ToolbarIcon>
                     <ToggleButton.ToolTip>
                         <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                                 Content="Resize the window with the mouse wheel and keep zooming after the window reaches the screen edges." />
+                                 Content="Toggle window resizing with mouse wheel zoom (A). Keep zooming after the window reaches the screen edges." />
                     </ToggleButton.ToolTip>
                 </ToggleButton>
             </StackPanel>
@@ -141,7 +141,7 @@
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="RotateRightButton_Click">
-                <local:ToolbarIcon Glyph="&#xE7AD;" Shortcut="(R)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE7AD;" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                              Content="Rotate the displayed page 90° right (R). In Sync mode, rotate both windows. The original files are unchanged." />
@@ -153,13 +153,13 @@
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="RotateLeftButton_Click">
-                <local:ToolbarIcon Glyph="&#xE7AD;" IsMirrored="True" Shortcut="(L)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE7AD;" IsMirrored="True" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                              Content="Rotate the displayed page 90° left (L). In Sync mode, rotate both windows. The original files are unchanged." />
                 </Button.ToolTip>
             </Button>
-            <Button x:Name="PreviousPageButton" AutomationProperties.Name="Previous page (Page Up)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+            <Button x:Name="PreviousPageButton" AutomationProperties.Name="Previous page (Page Up or 1)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
                     ToolTipService.ShowOnDisabled="True"
                     MinWidth="0"
                     FontSize="{x:Static local:ViewerSettings.UiFontSize}"
@@ -169,10 +169,10 @@
                 <local:ToolbarIcon Glyph="&#xE76B;" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                             Content="Previous page (Page Up). In Sync mode, move both windows to the previous available page." />
+                             Content="Previous page (Page Up or 1). In Sync mode, move both windows to the previous available page." />
                 </Button.ToolTip>
             </Button>
-            <Button x:Name="NextPageButton" AutomationProperties.Name="Next page (Page Down)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+            <Button x:Name="NextPageButton" AutomationProperties.Name="Next page (Page Down or 2)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
                     ToolTipService.ShowOnDisabled="True"
                     MinWidth="0"
                     FontSize="{x:Static local:ViewerSettings.UiFontSize}"
@@ -182,31 +182,39 @@
                 <local:ToolbarIcon Glyph="&#xE76C;" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                             Content="Next page (Page Down). In Sync mode, move both windows to the next available page." />
+                             Content="Next page (Page Down or 2). In Sync mode, move both windows to the next available page." />
                 </Button.ToolTip>
             </Button>
-            <Button x:Name="PreviousFileButton" AutomationProperties.Name="Previous file (B)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+            <Button x:Name="PreviousFileButton" AutomationProperties.Name="Previous file (Q)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                    ToolTipService.ShowOnDisabled="True"
                     MinWidth="0"
                     FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="PreviousFileButton_Click">
-                <local:ToolbarIcon Glyph="&#xE760;" Shortcut="(B)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE760;" IsHitTestVisible="False" />
                 <Button.ToolTip>
-                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Previous image file in the same folder (B)" />
+                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Previous image file in the same folder (Q)" />
                 </Button.ToolTip>
             </Button>
-            <Button x:Name="NextFileButton" AutomationProperties.Name="Next file (N)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+            <Button x:Name="NextFileButton" AutomationProperties.Name="Next file (W)" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                    ToolTipService.ShowOnDisabled="True"
                     MinWidth="0"
                     FontSize="{x:Static local:ViewerSettings.UiFontSize}"
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     IsEnabled="False" Click="NextFileButton_Click">
-                <local:ToolbarIcon Glyph="&#xE761;" Shortcut="(N)" IsHitTestVisible="False" />
+                <local:ToolbarIcon Glyph="&#xE761;" IsHitTestVisible="False" />
                 <Button.ToolTip>
-                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Next image file in the same folder (N)" />
+                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}" Content="Next image file in the same folder (W)" />
                 </Button.ToolTip>
             </Button>
+            <Button x:Name="HelpButton" AutomationProperties.Name="Help"
+                    MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                    FontSize="{x:Static local:ViewerSettings.UiFontSize}" FontWeight="SemiBold"
+                    Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
+                    Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
+                    Content="H" ToolTip="Help / ヘルプ" Click="HelpButton_Click" />
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <Label x:Name="CropSaveDestinationLabel" Content="Save to"
                        FontSize="{x:Static local:ViewerSettings.UiFontSize}"

@@ -1,0 +1,22 @@
+<Window x:Class="CSTViewer.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CSTViewer"
+        Width="{x:Static local:ViewerSettings.HelpWindowWidth}"
+        Height="{x:Static local:ViewerSettings.HelpWindowHeight}"
+        MinWidth="{x:Static local:ViewerSettings.HelpWindowMinimumWidth}"
+        MinHeight="{x:Static local:ViewerSettings.HelpWindowMinimumHeight}"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResizeWithGrip"
+        Background="#202020" Foreground="#E6E6E6" FontFamily="Segoe UI, Yu Gothic UI">
+    <DockPanel Margin="18,12,12,12">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
+            <Label x:Name="HelpLanguageLabel" Target="{Binding ElementName=HelpLanguageComboBox}"
+                   VerticalAlignment="Center" Padding="0" Margin="0,0,10,0" />
+            <ComboBox x:Name="HelpLanguageComboBox" MinWidth="130"
+                      AutomationProperties.LabeledBy="{Binding ElementName=HelpLanguageLabel}"
+                      SelectionChanged="HelpLanguageComboBox_SelectionChanged" />
+        </StackPanel>
+        <FlowDocumentScrollViewer x:Name="HelpDocumentViewer" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" />
+    </DockPanel>
+</Window>

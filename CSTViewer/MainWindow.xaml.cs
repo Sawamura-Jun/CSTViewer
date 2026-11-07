@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private bool _isLoading;
     private bool _isPanning;
     private bool _isClosed;
+    private HelpWindow? _helpWindow;
     private Point _lastPanPosition;
     private ImageLoadMeasurement? _pendingRenderMeasurement;
     private DispatcherTimer? _renderMeasurementTimeout;
@@ -88,6 +89,21 @@ public partial class MainWindow : Window
         content.UpdateLayout();
         return new Size(Math.Max(0, Width - ImageViewportCanvas.ActualWidth),
             Math.Max(0, Height - ImageViewportCanvas.ActualHeight));
+    }
+
+    private void HelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_helpWindow is { } openHelp)
+        {
+            if (openHelp.WindowState == WindowState.Minimized) openHelp.WindowState = WindowState.Normal;
+            openHelp.Activate();
+            return;
+        }
+
+        var help = new HelpWindow(this);
+        help.Closed += (_, _) => _helpWindow = null;
+        _helpWindow = help;
+        help.Show();
     }
 
     private async void OpenImageButton_Click(object sender, RoutedEventArgs e)
@@ -391,6 +407,12 @@ public partial class MainWindow : Window
             if (!e.IsRepeat) _spreadController.Fit(this);
             return;
         }
+        if (Keyboard.Modifiers == ModifierKeys.None && e.Key == ViewerSettings.FitWheelZoomShortcutKey)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat && FitWheelZoomButton.IsEnabled) FitWheelZoomButton.IsChecked = !IsFitWheelZoomEnabled;
+            return;
+        }
         if (Keyboard.Modifiers == ModifierKeys.None && e.Key == ViewerSettings.DiffShortcutKey)
         {
             e.Handled = true;
@@ -422,10 +444,12 @@ public partial class MainWindow : Window
             if (!e.IsRepeat) await CopyCropAsync();
             return;
         }
-        if (e.Key is Key.PageUp or Key.PageDown)
+        if (e.Key is Key.PageUp or Key.PageDown
+            || (Keyboard.Modifiers == ModifierKeys.None
+                && e.Key is ViewerSettings.PreviousPageShortcutKey or ViewerSettings.NextPageShortcutKey))
         {
             e.Handled = true;
-            await ChangePageAsync(e.Key == Key.PageUp ? -1 : 1);
+            await ChangePageAsync(e.Key is Key.PageUp or ViewerSettings.PreviousPageShortcutKey ? -1 : 1);
         }
         else if (Keyboard.Modifiers == ModifierKeys.None
             && e.Key is ViewerSettings.PreviousFileShortcutKey or ViewerSettings.NextFileShortcutKey)

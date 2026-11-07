@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.1.2";
+    public const string ApplicationTitle = "CSTViewer v1.1.3";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -29,12 +29,16 @@ public static class ViewerSettings
     public const double CtrlWheelWindowScaleFactor = 1.12;
     // WPFの文字サイズはDIP単位のため、9pt × 96 / 72 = 12を指定する。
     public const double UiFontSize = 12;
+    public const double HelpWindowWidth = 700;
+    public const double HelpWindowHeight = 620;
+    public const double HelpWindowMinimumWidth = 600;
+    public const double HelpWindowMinimumHeight = 280;
+    public const double HelpBodyFontSize = 14;
+    public const double HelpHeadingFontSize = 18;
     public const double TitleBarSeparatorHeight = 1;
     public const double ToolbarButtonHeight = 24;
     public const string ToolbarIconFontFamily = "Segoe Fluent Icons";
-    public const string ToolbarShortcutFontFamily = "Segoe UI";
     public const double ToolbarIconSize = 18;
-    public const double ToolbarIconShortcutGap = 6;
     // x:StaticでColorプロパティに渡すため、文字列ではなくColor型で保持する。
     public static readonly Color ToolbarButtonHoverBackground = Color.FromRgb(61, 61, 61);
     public static readonly Color ToolbarCheckedButtonHoverBackground = Color.FromRgb(120, 213, 255);
@@ -53,8 +57,10 @@ public static class ViewerSettings
     public const double CropSaveTextMinimumWidth = 240;
     public const string CropTimestampFormat = "yyyyMMdd_HHmmss_fff";
     public const int CropPngCompression = 9;
-    public const Key PreviousFileShortcutKey = Key.B;
-    public const Key NextFileShortcutKey = Key.N;
+    public const Key PreviousPageShortcutKey = Key.D1;
+    public const Key NextPageShortcutKey = Key.D2;
+    public const Key PreviousFileShortcutKey = Key.Q;
+    public const Key NextFileShortcutKey = Key.W;
     public const Key RefreshFileListShortcutKey = Key.F5;
     public const Key SpreadShortcutKey = Key.S;
     public const Key DiffShortcutKey = Key.D;
@@ -69,6 +75,7 @@ public static class ViewerSettings
     public static readonly double[] DiffAddedColor = [255, 0, 0];
     public static readonly double[] DiffDeletedColor = [0, 0, 255];
     public const Key FitShortcutKey = Key.F;
+    public const Key FitWheelZoomShortcutKey = Key.A;
     public const Key RotateRightShortcutKey = Key.R;
     public const Key RotateLeftShortcutKey = Key.L;
     public const Key CloseShortcutKey = Key.C;
