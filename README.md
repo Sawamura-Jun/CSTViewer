@@ -1,82 +1,100 @@
 # CSTViewer
 
-**1. Basic view**
-
-![CSTViewer displaying a sample TIFF drawing](docs/images/basic-view.png)
-
-**2. Crop selection (right drag)**
-
-![Crop selection with a resizable frame](docs/images/crop-selection.png)
-
-**3. Side-by-side Sync**
-
-![Two windows with synchronized viewing](docs/images/side-by-side-sync.png)
-
-**4. Image diff (red: added, blue: removed)**
-
-![Image comparison highlighting additions in red and deletions in blue](docs/images/image-diff.png)
-
-CSTViewer is a fast image viewer for Windows 11, built with C# and .NET 10 (WPF). It is a rewrite of the Python TIFF viewer, focused on responsive navigation and viewing large images.
+CSTViewer is a fast Windows 11 image viewer for technical drawings, built with C# and .NET 10 (WPF). It supports multipage TIFFs, generates TIFF diff files that highlight additions and deletions, and lets you crop and save selected regions. Sync mode links zoom, pan, and navigation in two side-by-side windows. Built-in OCR lets you search across all TIFF pages and view the recognized text.
 
 ## Features
 
-- View multipage TIFFs, including BigTIFF, plus PNG, JPEG, BMP, GIF, and WebP. Animated GIF and WebP images display the first frame.
-- Use two image states: a lightweight preview and a cached detail image at 1.8 times the current display resolution, capped at the source resolution. Refine the visible TIFF area with a 50% margin on each side first, then generate the entire current page at the same required resolution in the background.
-- Prioritize page previews over full-page refinement. Visible-area refinement remains available during preloading; full-page refinement starts after preview preloading finishes.
-- Reuse cached detail images for panning and zooming, upgrading them only when their resolution is insufficient. At Fit, the first detail image already covers the entire page, so a second full-page decode is skipped. Retain generated detail images for all pages in the open file, without a page-count limit. Cache up to 64 preview pages and 16 pages of mipmaps, without byte-size limits. Monochrome TIFFs continue to use 8-bit grayscale display images.
-- Use only the lightweight preview while zooming, then restore cached detail after 220 ms without wheel input, matching the Python viewer.
-- Restore detail independently of the 1.8-times refinement target: use available detail that improves on the preview immediately after zooming, even when more pixels are still needed, and continue refinement in the background.
-- Open images by drag and drop, file dialog, or command-line arguments.
-- Navigate all supported image formats in the same folder with the previous and next file buttons or Q and W.
-- Rotate the displayed page 90° right or left (R / L). Each page keeps its own viewing angle while the file is open; other pages and the original file remain unchanged.
-- Automatically size the window to the rotated image using the startup sizing rules until the window is manually resized. Keep side-by-side Sync layouts unchanged.
-- Use compact Fluent toolbar icons with shortcuts listed in their tooltips.
-- Compare two windows side by side with synchronized zoom, pan, navigation, and 90° rotation. R / L rotates the currently displayed page in each window by the same amount.
-- Generate image diffs with additions in red and deletions in blue.
-- Search drawing text across all pages of an open TIFF with OCR and highlight matches on the current page with translucent red shading.
-- Show recognized text from every TIFF page in a separate window. The status bar shows progress during search and OCR.
-- Select, save, and copy image regions to the clipboard.
-- Copy the entire source file to the desktop with the **Save** button.
+- **Image formats and navigation.** View multipage TIFFs, including BigTIFF, plus PNG, JPEG, BMP, GIF, and WebP. Animated GIF and WebP images display the first frame. Open images by drag and drop, the file dialog, or command-line arguments. Browse supported images in the same folder with the previous and next file controls.
+- **Zoom and rotation.** Zoom around the pointer, pan, or fit the entire image. Optionally resize the window as you zoom with the wheel. Rotate the displayed page 90° in either direction. Each page retains its viewing angle while the file is open. Before a manual resize, a window in normal view can resize automatically when the page orientation changes.
+- **Side-by-side Sync.** Arrange two viewer windows on the same monitor and synchronize zoom, pan, page and file navigation, and rotation. Rotation applies the same 90° step to the displayed page in each window. Select **Sync** again to turn synchronization off.
+- **Image comparison.** With both images open, run **Compare** from the newer image's window. CSTViewer compares all pages against the image in the nearest other visible viewer window and shows progress in the status bar. It saves the result as a BigTIFF and opens it in a new window. Additions appear in red and deletions in blue.
+- **TIFF text search and OCR.** Search all pages of the open TIFF for recognized text. Translucent red highlights mark matches on the displayed page. The status bar reports the number of matches and how many pages contain them. The adjacent **OCR** button opens the recognized text for every page in a separate window. Both operations use bundled Tesseract 5 with English and Japanese recognition, including vertical Japanese, and show progress in the status bar.
+- **Crop and save.** Select a region to save and copy to the clipboard. Crops use the source file format, with lossless encoding for WebP. The **Save** button copies the entire source file to the desktop under its original name and asks before overwriting an existing file.
+- **In-app help.** Click the **H** toolbar button for a guide to the toolbar, shortcuts, cropping, and mouse controls in English or Japanese.
+
+### Large-image rendering
+
+CSTViewer shows a lightweight preview during wheel zoom. After 220 ms without wheel input, it restores any cached detail that improves on the preview and continues rendering higher-resolution detail as needed. The target is 1.8 times the display resolution, up to the source resolution.
+
+For TIFFs, CSTViewer first refines the visible area with a margin of 50% on each side. Page preview preloading takes priority over full-page refinement. At Fit, a detail image that already covers the page also serves as the full-page image. CSTViewer retains generated full-page detail images for the open file and caches up to 64 preview pages and 16 pages of mipmaps. Monochrome TIFFs use 8-bit grayscale display images.
 
 ## Run
 
-Requires Windows 11 (x64) and the .NET 10 SDK. TIFF and WebP support use the bundled NetVips/libvips libraries; no Python installation is required.
+CSTViewer runs on Windows 11 (x64). Framework-dependent builds require the .NET 10 Desktop Runtime (x64). Open `CSTViewer.exe` from the published folder and keep the bundled `Tesseract-OCR` folder next to it. TIFF and WebP use the bundled NetVips/libvips libraries.
 
-The published app includes Tesseract for TIFF search and OCR. Keep the `Tesseract-OCR` folder next to `CSTViewer.exe`.
-
-To publish from a source checkout, place the Windows x64 Tesseract 5 bundle in `resources\Tesseract-OCR` or specify its directory with `-p:TesseractBundleDir=...`. Include `tesseract.exe`, its DLLs, `tessdata\eng.traineddata`, `tessdata\jpn.traineddata`, `tessdata\jpn_vert.traineddata`, `tessdata\osd.traineddata`, `tessdata\configs\tsv`, and the accompanying license notices. The `FolderProfile` publish profile copies this bundle to `Release\bin\Tesseract-OCR`.
+To run from a source checkout, install the .NET 10 SDK and run this command from the repository root.
 
 ```powershell
 dotnet run --project .\CSTViewer\CSTViewer.csproj
 ```
 
-To open an image at startup:
+Pass one or more paths after `--` to open each image in its own window.
 
 ```powershell
-dotnet run --project .\CSTViewer\CSTViewer.csproj -- "C:\images\sample.tif"
+dotnet run --project .\CSTViewer\CSTViewer.csproj -- "C:\images\first.tif" "C:\images\second.tif"
 ```
+
+After the last viewer window closes, CSTViewer stays in the Windows notification area. Double-click its icon or choose **Open CSTViewer** from the icon's menu to bring up a viewer. Choose **Exit** from that menu to quit. Launching CSTViewer again with image paths opens them in the running application.
 
 ## Controls
 
 | Action | Control |
 | --- | --- |
-| Zoom / pan | Mouse wheel / left drag |
-| Fit image / trim window margins | F |
+| Open an image | **Open** button or drag and drop an image file |
+| Zoom around the pointer / pan | Mouse wheel / left-drag outside the crop selection |
+| Fit the entire image or trim margins when already fitted | F |
 | Toggle window resizing with mouse wheel zoom | A |
+| Resize the window in normal view | Ctrl + mouse wheel |
+| Maximize / restore the window | Left double-click on the image area |
 | Rotate displayed page 90° right / left | R / L |
 | Previous / next TIFF page | Page Up or 1 / Page Down or 2 |
 | Previous / next supported image file in the folder | Q / W |
-| New window / toggle synchronization | Ctrl+Shift+N / S |
-| Generate a diff (current window is the new image) | D |
+| Refresh the folder's image list | F5 |
+| Open a new viewer window / toggle Sync | Ctrl+Shift+N / S |
+| Compare all pages using the current window as the newer image | D |
 | Search TIFF text | Enter in the search box or click the magnifying glass |
-| Show OCR results for all TIFF pages | Click the OCR button next to the magnifying glass |
-| Select a region / save and copy it | Right drag / click inside the selection |
+| Show OCR results for all TIFF pages | **OCR** button next to the magnifying glass |
+| Select a crop | Right-drag on the image |
+| Move / resize the selection | Left-drag inside the frame / left-drag an edge or corner |
+| Save and copy the selection | Left-click inside the selection |
 | Copy selection / clear selection | Ctrl+C / Esc |
+| Close the viewer, or both viewers in Sync mode | C or middle-click on the image area |
+| Open help | **H** toolbar button |
 
-Click the **Save to** crop icon, enter the destination for crops and diffs in the window that opens, and select **OK**.
+Use **Save to** to set the destination for crops and diffs. Enter a folder path or filename and select **OK**. Leaving the field blank saves beside the source image with an automatically generated name.
+
+## Publish from source
+
+Place a Windows x64 Tesseract 5 bundle in `resources\Tesseract-OCR`. Source builds use the same bundle for TIFF search and OCR. To publish using a bundle in another location, pass `-p:TesseractBundleDir=...` with its path.
+
+Include `tesseract.exe`, `libtesseract-5*.dll`, `libleptonica-6.dll`, their dependent DLLs, and the accompanying license notices. The `tessdata` folder must contain `eng.traineddata`, `jpn.traineddata`, `jpn_vert.traineddata`, `osd.traineddata`, and `configs\tsv`.
+
+```powershell
+dotnet publish .\CSTViewer\CSTViewer.csproj -c Release -p:PublishProfile=FolderProfile -o .\Release\bin
+```
+
+The command creates a framework-dependent Windows x64 build and copies the bundle to `Release\bin\Tesseract-OCR`.
 
 ## Tests
 
 ```powershell
 dotnet test .\CSTViewer\CSTViewer.slnx
 ```
+
+## Screenshots
+
+**Basic view**
+
+![CSTViewer displaying a sample TIFF drawing](docs/images/basic-view.png)
+
+**Crop selection**
+
+![Crop selection with a resizable frame](docs/images/crop-selection.png)
+
+**Side-by-side Sync**
+
+![Two windows with synchronized viewing](docs/images/side-by-side-sync.png)
+
+**Image diff**
+
+![Image comparison highlighting additions in red and deletions in blue](docs/images/image-diff.png)
