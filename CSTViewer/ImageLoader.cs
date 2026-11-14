@@ -138,15 +138,23 @@ internal static class ImageLoader
             }
             _ = VipsInitialized.Value;
             measurement?.StartStage("DecodeAndRead");
-            using var source = VipsImage.Tiffload(path, page: pageIndex, n: 1, autorotate: true,
-                access: Enums.Access.Random, revalidate: true);
+            using var sequential = VipsImage.Tiffload(path, page: pageIndex, n: 1,
+                access: Enums.Access.Sequential, revalidate: true);
+            // TIFFの向き補正で元の行順が変わる場合に備え、そのページはランダム読み込みで開き直す。
+            using var oriented = sequential.GetTypeOf("orientation") != 0 && (int)sequential.Get("orientation") != 1
+                ? VipsImage.Tiffload(path, page: pageIndex, n: 1, autorotate: true,
+                    access: Enums.Access.Random, revalidate: true)
+                : null;
+            var source = oriented ?? sequential;
             ValidateCrop(request.Rectangle, source.Width, source.Height);
             cancellationToken.ThrowIfCancellationRequested();
             // 元画像を切り抜いてから縮小し、画面外の画素をWPF用Bitmapへ展開しない。
             using var cropped = source.Crop(request.Rectangle.X, request.Rectangle.Y,
                 request.Rectangle.Width, request.Rectangle.Height);
+            // 先に画素を平均して、線形補間に渡す画素数を減らす。
             using var resized = request.DecodeScale < 1
-                ? cropped.Resize(request.DecodeScale, kernel: Enums.Kernel.Linear) : cropped.Copy();
+                ? cropped.Resize(request.DecodeScale, kernel: Enums.Kernel.Linear, gap: ViewerSettings.DetailRegionResizeGap)
+                : cropped.Copy();
             var bitmap = CreateVipsBitmap(resized, measurement, cancellationToken);
             int pageCount = source.GetTypeOf("n-pages") != 0 ? (int)source.Get("n-pages") : 1;
             SetMetadata(measurement, bitmap, source.Width, source.Height, pageCount);

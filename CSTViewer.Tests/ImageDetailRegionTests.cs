@@ -278,6 +278,32 @@ public class ImageDetailRegionTests
     }
 
     [Fact]
+    public async Task RegionDecode_StrongReductionKeepsSinglePixelLines()
+    {
+        string path = TemporaryPath();
+        try
+        {
+            const int width = 1024, height = 64, spacing = 23;
+            const double scale = 0.243;
+            var pixels = Enumerable.Repeat((byte)255, width * height).ToArray();
+            for (int x = 20; x < width - 20; x += spacing)
+                for (int y = 0; y < height; y++) pixels[y * width + x] = 0;
+            Save(path, BitmapSource.Create(width, height, 96, 96, PixelFormats.Gray8, null, pixels, width));
+
+            var region = await ImageLoader.LoadDetailRegionAsync(path, 0, new(new Int32Rect(0, 0, width, height), scale));
+            var row = new byte[region.Bitmap.PixelWidth];
+            region.Bitmap.CopyPixels(new Int32Rect(0, region.Bitmap.PixelHeight / 2, row.Length, 1), row, row.Length, 0);
+            // 元の画素位置が異なる細線も、縮小後の近傍に残ることを確認する。
+            for (int x = 20; x < width - 20; x += spacing)
+            {
+                int center = (int)(x * scale);
+                Assert.Contains(row[(center - 1)..(center + 2)], value => value < 255);
+            }
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task RegionDecode_UsesSelectedPageAndRotatedCoordinates()
     {
         string path = TemporaryPath();
@@ -285,20 +311,24 @@ public class ImageDetailRegionTests
         {
             var encoder = new TiffBitmapEncoder { Compression = TiffCompressOption.Lzw };
             encoder.Frames.Add(BitmapFrame.Create(PreviewLoadingTests.CreateBitmap(40, 40, 0)));
-            var pixels = new byte[100 * 60];
-            for (int y = 0; y < 60; y++)
-                for (int x = 0; x < 100; x++) pixels[y * 100 + x] = (byte)((x + y * 3) % 256);
+            const int width = 400, height = 600;
+            var pixels = new byte[width * height];
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++) pixels[y * width + x] = (byte)((x + y * 3) % 256);
             var metadata = new BitmapMetadata("tiff");
             metadata.SetQuery("/ifd/{ushort=274}", (ushort)6);
-            encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(100, 60, 96, 96,
-                PixelFormats.Gray8, null, pixels, 100), null, metadata, null));
+            encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(width, height, 96, 96,
+                PixelFormats.Gray8, null, pixels, width), null, metadata, null));
             using (var stream = File.Create(path)) encoder.Save(stream);
-            var region = await ImageLoader.LoadDetailRegionAsync(path, 1, new(new Int32Rect(5, 25, 10, 10), 1));
+            var rectangle = new Int32Rect(5, 25, 300, 200);
+            var region = await ImageLoader.LoadDetailRegionAsync(path, 1, new(rectangle, 1));
             Assert.Equal(1, region.PageIndex);
-            var actual = new byte[100];
-            region.Bitmap.CopyPixels(actual, 10, 0);
-            for (int y = 0; y < 10; y++)
-                for (int x = 0; x < 10; x++) Assert.Equal(pixels[(54 - x) * 100 + 25 + y], actual[y * 10 + x]);
+            var actual = new byte[rectangle.Width * rectangle.Height];
+            region.Bitmap.CopyPixels(actual, rectangle.Width, 0);
+            for (int y = 0; y < rectangle.Height; y++)
+                for (int x = 0; x < rectangle.Width; x++)
+                    Assert.Equal(pixels[(height - 1 - rectangle.X - x) * width + rectangle.Y + y],
+                        actual[y * rectangle.Width + x]);
         }
         finally { File.Delete(path); }
     }

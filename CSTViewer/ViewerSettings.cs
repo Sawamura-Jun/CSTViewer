@@ -100,6 +100,7 @@ public static class ViewerSettings
     // 通常の詳細更新にはズーム関連の待機時間の合計を使い、パン終了後は待たずに更新する。
     public const int DetailLoadDelayMilliseconds = ZoomInteractionIdleMilliseconds + DetailAfterZoomIdleDelayMilliseconds;
     public const double DetailOversamplingFactor = 1.8;
+    public const double DetailRegionResizeGap = 1.0;
     // ②は各辺50%の余白を先に読み込み、その後同じ表示倍率向けの解像度でページ全体を生成する。
     public const double DetailRegionMarginRatio = 0.5;
     // 0はページ数の制限なし。開いているファイルで生成した②を全ページ分保持する。
