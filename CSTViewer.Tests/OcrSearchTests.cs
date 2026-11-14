@@ -1,0 +1,102 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+
+namespace CSTViewer.Tests;
+
+public class OcrSearchTests
+{
+    private const string TsvHeader = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext";
+
+    [Fact]
+    public void Search_NormalizesWidthAndCaseAndKeepsBlankPagesAndWordBounds()
+    {
+        string tsv = string.Join('\n', TsvHeader,
+            "1\t1\t0\t0\t0\t0\t0\t0\t100\t80\t-1\t",
+            "1\t2\t0\t0\t0\t0\t0\t0\t200\t100\t-1\t",
+            "4\t2\t1\t1\t1\t0\t10\t20\t120\t10\t-1\t",
+            "5\t2\t1\t1\t1\t1\t10\t20\t20\t10\t90\tﾊﾟｲﾌﾟ",
+            "5\t2\t1\t1\t1\t2\t32\t20\t15\t10\t90\t径",
+            "5\t2\t1\t1\t1\t3\t58\t20\t24\t10\t90\tBracket",
+            "5\t2\t1\t1\t1\t4\t94\t20\t36\t10\t90\tMOTOR",
+            "4\t2\t1\t1\t2\t0\t58\t50\t24\t10\t-1\t",
+            "5\t2\t1\t1\t2\t1\t58\t50\t24\t10\t90\tPLATE");
+        OcrSearchPage[] pages = TiffOcr.ParseTsv(tsv, [new Size(100, 80), new Size(200, 100)]);
+
+        Rect[][] japanese = OcrTextSearch.FindMatches(pages, "　ﾌﾟ径　", CancellationToken.None);
+        Assert.Empty(japanese[0]);
+        Assert.Equal(new Rect(0.05, 0.2, 0.185, 0.1), Assert.Single(japanese[1]));
+        Rect[][] english = OcrTextSearch.FindMatches(pages, "ｃＫｅＴ ＭＯＴ", CancellationToken.None);
+        Assert.Equal(new Rect(0.29, 0.2, 0.36, 0.1), Assert.Single(english[1]));
+        Assert.Empty(OcrTextSearch.FindMatches(pages, "motor plate", CancellationToken.None)[1]);
+    }
+
+    [Theory]
+    [InlineData(2, 100, 80, 1)]
+    [InlineData(1, 80, 100, 1)]
+    [InlineData(1, 100, 80, 2)]
+    public void ParseTsv_RejectsIncorrectPageNumberDimensionsAndCount(int number, int width, int height, int count)
+    {
+        string tsv = $"{TsvHeader}\n1\t{number}\t0\t0\t0\t0\t0\t0\t{width}\t{height}\t-1\t";
+        Size[] sizes = Enumerable.Repeat(new Size(100, 80), count).ToArray();
+        Assert.Throws<InvalidDataException>(() => TiffOcr.ParseTsv(tsv, sizes));
+    }
+
+    [Fact]
+    public async Task Preprocessing_MatchesDisplayedPixelsForAllTiffOrientations()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("CSTViewer-search-test-");
+        string source = Path.Combine(directory.FullName, "図面.tif");
+        string prepared = Path.Combine(directory.FullName, "text.tif");
+        try
+        {
+            const int width = 140, height = 110;
+            var pixels = new byte[width * height];
+            Array.Fill(pixels, byte.MaxValue);
+            // 反転や180°回転を検出できるよう、非対称の位置に黒の目印を置く。
+            for (int y = 18; y < 34; y++)
+                pixels.AsSpan(y * width + 100, 22).Fill(0);
+            var bitmap = BitmapSource.Create(width, height, 400, 400, PixelFormats.Gray8, null, pixels, width);
+            var encoder = new TiffBitmapEncoder();
+            for (ushort orientation = 1; orientation <= 8; orientation++)
+            {
+                var metadata = new BitmapMetadata("tiff");
+                metadata.SetQuery("/ifd/{ushort=274}", orientation);
+                encoder.Frames.Add(BitmapFrame.Create(bitmap, null, metadata, null));
+            }
+            using (var stream = File.Create(source)) encoder.Save(stream);
+            Size[] sizes = DrawingLineRemoval.SaveAs(source, prepared, 8, CancellationToken.None);
+            ImagePage[] displayPages = await Task.WhenAll(Enumerable.Range(0, sizes.Length)
+                .Select(index => ImageLoader.LoadPageAsync(source, index, new Size(width, width))));
+            using var input = File.OpenRead(prepared);
+            var decoder = new TiffBitmapDecoder(input, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            Assert.Equal(8, decoder.Frames.Count);
+            for (int index = 0; index < sizes.Length; index++)
+            {
+                ImagePage display = displayPages[index];
+                BitmapFrame frame = decoder.Frames[index];
+                Assert.Equal(new Size(display.SourceWidth, display.SourceHeight), sizes[index]);
+                Assert.Equal((display.SourceWidth, display.SourceHeight), (frame.PixelWidth, frame.PixelHeight));
+                Assert.Equal(400, frame.DpiX, 3);
+                Assert.Equal(400, frame.DpiY, 3);
+                Assert.Equal(1, frame.Format.BitsPerPixel);
+                Assert.Equal(ReadGrayPixels(display.Bitmap), ReadGrayPixels(frame));
+            }
+        }
+        finally
+        {
+            File.Delete(prepared);
+            File.Delete(source);
+            directory.Delete();
+        }
+    }
+
+    private static byte[] ReadGrayPixels(BitmapSource source)
+    {
+        var gray = new FormatConvertedBitmap(source, PixelFormats.Gray8, null, 0);
+        var pixels = new byte[gray.PixelWidth * gray.PixelHeight];
+        gray.CopyPixels(pixels, gray.PixelWidth, 0);
+        return pixels;
+    }
+}

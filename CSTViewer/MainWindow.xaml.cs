@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -175,6 +176,7 @@ public partial class MainWindow : Window
         measurement?.StartStage("UiPreparation");
         StopPanning();
         CancelCropDrag();
+        ResetTiffSearch();
         SetLoadingState(true);
         try
         {
@@ -321,6 +323,7 @@ public partial class MainWindow : Window
     private void UpdatePageControls()
     {
         UpdateSpreadControls();
+        UpdateSearchControls();
         UpdateStatusText();
         UpdateFileControls();
     }
@@ -328,7 +331,8 @@ public partial class MainWindow : Window
     private void UpdateStatusText()
     {
         // 保存結果とエラーは既存の下部ステータス欄へ表示し、ツールバーの行数を増やさない。
-        PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? (_session is null ? "Open an image file" : _session.Error
+        PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? _searchStatus
+            ?? (_session is null ? "Open an image file" : _session.Error
             ?? (_isDetailLoading || _currentPage is { } page && _session.IsFullPageLoading(page.Index)
                 ? (ImageLoader.IsTiff(_session.Path) ? "Loading image details…" : "Adjusting image display…")
                 : _session.IsPreloading ? $"Preloading pages: {_session.LoadedPages} / {_session.PageCount}"
@@ -386,6 +390,8 @@ public partial class MainWindow : Window
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (Keyboard.FocusedElement is TextBoxBase) return;
+
         if (e.Key == Key.N && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
             e.Handled = true;
@@ -978,6 +984,7 @@ public partial class MainWindow : Window
         // RenderTransformはレイアウトの再計算を避け、パン・ズーム時の負荷を抑える。
         ImageTransform.Matrix = _viewport.ImageToViewMatrix;
         UpdateDetailRegionViewport();
+        UpdateSearchHighlights();
         UpdateCropOverlay();
         UpdateBitmapScalingMode();
         ZoomStatusText.Text = _viewport.HasImage
@@ -1044,6 +1051,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isClosed = true;
+        ResetTiffSearch();
         CancelPendingDetailRegion();
         RemoveSpreadWindowHook();
         _saveCancellation?.Cancel();

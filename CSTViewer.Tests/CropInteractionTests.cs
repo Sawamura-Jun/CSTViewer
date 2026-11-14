@@ -271,12 +271,17 @@ public class CropInteractionTests
                 languages.SelectedItem = language;
                 FlowDocument document = viewer.Document;
                 var toolbar = document.Blocks.OfType<Table>().First();
-                TableRow destinationRow = toolbar.RowGroups[0].Rows[^1];
+                int destinationIndex = Array.FindIndex(language.Toolbar.Rows,
+                    row => row.ButtonName == nameof(MainWindow.CropSaveDestinationButton));
+                Assert.True(destinationIndex >= 0);
+                TableRow destinationRow = toolbar.RowGroups[0].Rows[destinationIndex + 1];
                 var label = Assert.IsType<Paragraph>(destinationRow.Cells[0].Blocks.FirstBlock);
                 var iconContainer = Assert.Single(label.Inlines.OfType<InlineUIContainer>());
                 var icon = Assert.IsType<ToolbarIcon>(Assert.IsType<Border>(iconContainer.Child).Child);
                 Assert.Equal(toolbarIcon.Glyph, icon.Glyph);
                 Assert.Contains(language.Crop.SaveToDescription, new TextRange(document.ContentStart, document.ContentEnd).Text);
+                var search = Assert.Single(language.Toolbar.Rows, row => row.ButtonName == nameof(MainWindow.SearchButton));
+                Assert.Contains(search.Description, new TextRange(document.ContentStart, document.ContentEnd).Text);
             }
         }
         finally { window.Close(); }

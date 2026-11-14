@@ -29,9 +29,11 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.NextPageButton), "Next page", "Page Down / 2", "Go to the next page in a multipage TIFF."),
                 (nameof(MainWindow.PreviousFileButton), "Previous file", "Q", "Open the previous image in the same folder."),
                 (nameof(MainWindow.NextFileButton), "Next file", "W", "Open the next image in the same folder."),
-                (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window."),
+                (nameof(MainWindow.SearchButton), "Search TIFF text", "Enter in search box",
+                    "Type a query and search all pages of the open TIFF using Tesseract OCR. Shaded red areas mark matches on the current page. Use the page controls to view other pages. Tesseract with English, Japanese, and orientation data is required."),
                 (nameof(MainWindow.CropSaveDestinationButton), "Save to", "—",
-                    "Open the save location window for crops and comparison images.")
+                    "Open the save location window for crops and comparison images."),
+                (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window.")
             ]),
             new("Crop",
             [
@@ -71,9 +73,11 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.NextPageButton), "次のページ", "Page Down / 2", "複数ページのTIFFで次のページに移動します。"),
                 (nameof(MainWindow.PreviousFileButton), "前のファイル", "Q", "同じフォルダー内の前の画像を開きます。"),
                 (nameof(MainWindow.NextFileButton), "次のファイル", "W", "同じフォルダー内の次の画像を開きます。"),
-                (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。"),
+                (nameof(MainWindow.SearchButton), "TIFFの文字検索", "検索欄で Enter",
+                    "検索語を入力し、Tesseract OCRで開いているTIFFの全ページを検索します。表示中のページの一致箇所を半透明の赤で塗りつぶします。他のページはページ移動ボタンで確認できます。Tesseract本体と英語・日本語・向き検出用のデータが必要です。"),
                 (nameof(MainWindow.CropSaveDestinationButton), "保存先（Save to）", "—",
-                    "切り抜きと差分画像の保存先を設定するウィンドウを開きます。")
+                    "切り抜きと差分画像の保存先を設定するウィンドウを開きます。"),
+                (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。")
             ]),
             new("切り抜き（CROP）",
             [

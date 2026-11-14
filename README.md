@@ -33,12 +33,15 @@ CSTViewer is a fast image viewer for Windows 11, built with C# and .NET 10 (WPF)
 - Use compact Fluent toolbar icons with shortcuts listed in their tooltips.
 - Compare two windows side by side with synchronized zoom, pan, navigation, and 90° rotation. R / L rotates the currently displayed page in each window by the same amount.
 - Generate image diffs with additions in red and deletions in blue.
+- Search drawing text across all pages of an open TIFF with OCR and highlight matches on the current page with translucent red shading.
 - Select, save, and copy image regions to the clipboard.
 - Copy the entire source file to the desktop with the **Save** button.
 
 ## Run
 
 Requires Windows 11 (x64) and the .NET 10 SDK. TIFF and WebP support use the bundled NetVips/libvips libraries; no Python installation is required.
+
+TIFF text search uses an external Tesseract 5 installation. Install it in `%ProgramFiles%\Tesseract-OCR` or set `CSTVIEWER_TESSERACT_DIR` to the folder that contains `tesseract.exe`. The installation needs its DLLs, `tessdata\eng.traineddata`, `tessdata\jpn.traineddata`, `tessdata\osd.traineddata`, and `tessdata\configs\tsv`.
 
 ```powershell
 dotnet run --project .\CSTViewer\CSTViewer.csproj
@@ -62,6 +65,7 @@ dotnet run --project .\CSTViewer\CSTViewer.csproj -- "C:\images\sample.tif"
 | Previous / next supported image file in the folder | Q / W |
 | New window / toggle synchronization | Ctrl+Shift+N / S |
 | Generate a diff (current window is the new image) | D |
+| Search TIFF text | Enter in the search box or click the magnifying glass |
 | Select a region / save and copy it | Right drag / click inside the selection |
 | Copy selection / clear selection | Ctrl+C / Esc |
 
