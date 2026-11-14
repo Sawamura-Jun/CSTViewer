@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -191,7 +192,6 @@ public class WindowInteractionTests
             Point center = WindowScreen.Center(window);
             Rect workArea = WindowScreen.WorkArea(window);
             var original = new Size(window.ActualWidth, window.ActualHeight);
-            Assert.Equal("Fit(F)", ((Button)window.FindName("FitImageButton")).Content);
 
             RaiseFit(window, shortcut);
             window.UpdateLayout();
@@ -269,8 +269,13 @@ public class WindowInteractionTests
             ((Button)window.FindName("FitImageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             return;
         }
+        RaiseShortcut(window, ViewerSettings.FitShortcutKey);
+    }
+
+    private static void RaiseShortcut(MainWindow window, Key key)
+    {
         var e = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window),
-            Environment.TickCount, ViewerSettings.FitShortcutKey) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+            Environment.TickCount, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
         window.RaiseEvent(e);
         Assert.True(e.Handled);
     }
@@ -285,6 +290,8 @@ public class WindowInteractionTests
     [Theory]
     [InlineData(2000, 1000, false)]
     [InlineData(1000, 2000, true)]
+    [InlineData(1400, 2000, false)]
+    [InlineData(1000, 1000, false)]
     public Task StartupImage_ResizesBeforeShowingAndFitsFirstPage(int width, int height, bool tiff)
     {
         return RunOnStaAsync(async () =>
@@ -302,12 +309,25 @@ public class WindowInteractionTests
                 window.Show();
                 window.UpdateLayout();
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
-                var target = WindowSizing.StartupViewportSize(new Size(width, height));
-                // 最小サイズや画面上限に当たらない辺では、表示領域がPython版の目標寸法になる。
-                double chromeWidth = window.Width - canvas.ActualWidth;
-                double expectedWidth = Math.Max(target.Width, window.MinWidth - chromeWidth);
-                if (width >= height && window.Width < workArea.Width) Assert.InRange(canvas.ActualWidth, expectedWidth - 2, expectedWidth + 2);
-                if (height > width && window.Height < workArea.Height) Assert.InRange(canvas.ActualHeight, target.Height - 2, target.Height + 2);
+                Rect monitor = WindowScreen.MonitorBounds(window);
+                if (width >= height)
+                {
+                    double expectedWidth = Math.Clamp(monitor.Width * ViewerSettings.StartupLandscapeWindowWidthRatio,
+                        window.MinWidth, Math.Max(window.MinWidth, workArea.Width));
+                    Assert.InRange(window.Width, expectedWidth - 1, expectedWidth + 1);
+                    if (window.Height > window.MinHeight + 2 && window.Height < workArea.Height - 2)
+                        Assert.InRange(canvas.ActualHeight, canvas.ActualWidth * height / width - 2,
+                            canvas.ActualWidth * height / width + 2);
+                }
+                else
+                {
+                    double expectedHeight = Math.Clamp(monitor.Height * ViewerSettings.StartupPortraitWindowHeightRatio,
+                        window.MinHeight, Math.Max(window.MinHeight, workArea.Height));
+                    Assert.InRange(window.Height, expectedHeight - 1, expectedHeight + 1);
+                    if (window.Width > window.MinWidth + 2 && window.Width < workArea.Width - 2)
+                        Assert.InRange(canvas.ActualWidth, canvas.ActualHeight * width / height - 2,
+                            canvas.ActualHeight * width / height + 2);
+                }
                 await window.OpenImageAsync(path);
                 var image = (Image)window.FindName("DisplayedImage");
                 Assert.NotNull(image.Source);
@@ -321,6 +341,56 @@ public class WindowInteractionTests
                 File.Delete(path);
             }
         });
+    }
+
+    [Fact]
+    public Task EmptyStartup_UsesLandscapeSizingBeforeShowing() => RunOnStaAsync(() =>
+    {
+        var window = new MainWindow(LogPath()) { ShowActivated = false };
+        try
+        {
+            window.PrepareEmptyStartup();
+            Assert.False(window.IsVisible);
+            window.Show();
+            window.UpdateLayout();
+            AssertEmptyLandscapeBounds(window);
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task NewEmptyWindow_UsesLandscapeSizingOnSourceMonitor() => RunOnStaAsync(() =>
+    {
+        var source = new MainWindow(LogPath()) { ShowActivated = false };
+        MainWindow? window = null;
+        try
+        {
+            source.Show();
+            window = source.CreateNewWindow();
+            window.UpdateLayout();
+            Assert.Equal(WindowScreen.MonitorBounds(source), WindowScreen.MonitorBounds(window));
+            AssertEmptyLandscapeBounds(window);
+        }
+        finally { window?.Close(); source.Close(); }
+        return Task.CompletedTask;
+    });
+
+    private static void AssertEmptyLandscapeBounds(MainWindow window)
+    {
+        Rect monitor = WindowScreen.MonitorBounds(window);
+        Rect area = WindowScreen.WorkArea(window);
+        var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
+        double expectedWidth = Math.Clamp(monitor.Width * ViewerSettings.StartupLandscapeWindowWidthRatio,
+            window.MinWidth, Math.Max(window.MinWidth, area.Width));
+        Assert.InRange(window.ActualWidth, expectedWidth - 1, expectedWidth + 1);
+        double chromeHeight = window.ActualHeight - canvas.ActualHeight;
+        double expectedHeight = Math.Clamp(canvas.ActualWidth * ViewerSettings.WindowHeight / ViewerSettings.WindowWidth
+            + chromeHeight, window.MinHeight, Math.Max(window.MinHeight, area.Height));
+        Assert.InRange(window.ActualHeight, expectedHeight - 2, expectedHeight + 2);
+        Assert.True(area.Contains(new Rect(window.Left, window.Top, window.Width, window.Height)));
+        Assert.Null(((Image)window.FindName("DisplayedImage")).Source);
+        Assert.Equal(Visibility.Visible, ((UIElement)window.FindName("EmptyImageHint")).Visibility);
     }
 
     [Fact]
@@ -385,6 +455,123 @@ public class WindowInteractionTests
             }
         });
     }
+
+    [Fact]
+    public Task FitWheelZoom_ResizesWindowAndKeepsImageFitted() => RunOnStaAsync(async () =>
+    {
+        string path = SaveImage(2000, 1000, false);
+        var window = new MainWindow(LogPath()) { ShowActivated = false, Width = 750, Height = 500 };
+        try
+        {
+            window.Show();
+            await window.OpenImageAsync(path);
+            var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
+            var image = (Image)window.FindName("DisplayedImage");
+            var toggleButton = (ToggleButton)window.FindName("FitWheelZoomButton");
+            var originalSize = new Size(window.ActualWidth, window.ActualHeight);
+            double originalScale = ((MatrixTransform)image.RenderTransform).Matrix.M11;
+            Assert.False(toggleButton.IsChecked);
+
+            window.HandleViewportWheel(new Point(), 120, ModifierKeys.None);
+            Assert.False(window.SpreadViewState!.Value.IsFitMode);
+            Assert.Equal(originalSize, new Size(window.ActualWidth, window.ActualHeight));
+            window.HandleViewportWheel(new Point(), -120, ModifierKeys.None);
+
+            RaiseShortcut(window, Key.A);
+            Assert.True(toggleButton.IsChecked);
+            window.HandleViewportWheel(new Point(), 120, ModifierKeys.None);
+            var enlargedSize = new Size(window.ActualWidth, window.ActualHeight);
+            double enlargedScale = AssertFitted();
+            Assert.True(enlargedSize.Width > originalSize.Width);
+            Assert.True(enlargedScale > originalScale);
+
+            window.HandleViewportWheel(new Point(), -120, ModifierKeys.None);
+            Assert.True(window.ActualWidth < enlargedSize.Width);
+            Assert.True(window.ActualHeight < enlargedSize.Height);
+            Assert.True(AssertFitted() < enlargedScale);
+
+            window.HandleViewportWheel(new Point(), -120 * 100, ModifierKeys.None);
+            Assert.Equal(window.MinWidth, window.Width);
+            Assert.Equal(window.MinHeight, window.Height);
+            AssertFitted();
+
+            RaiseShortcut(window, Key.A);
+            Assert.False(toggleButton.IsChecked);
+
+            double AssertFitted()
+            {
+                Assert.True(window.SpreadViewState!.Value.IsFitMode);
+                var matrix = ((MatrixTransform)image.RenderTransform).Matrix;
+                Assert.Equal(Math.Min(canvas.ActualWidth / 2000, canvas.ActualHeight / 1000), matrix.M11, 6);
+                Assert.Equal((canvas.ActualWidth - 2000 * matrix.M11) / 2, matrix.OffsetX, 6);
+                Assert.Equal((canvas.ActualHeight - 1000 * matrix.M11) / 2, matrix.OffsetY, 6);
+                return matrix.M11;
+            }
+        }
+        finally { window.Close(); File.Delete(path); }
+    });
+
+    [Fact]
+    public Task FitWheelZoom_FillsWorkAreaInNormalStateAndKeepsZoomingUpToMaximumScale() => RunOnStaAsync(async () =>
+    {
+        string path = SaveImage(2000, 1000, false);
+        var window = new MainWindow(LogPath()) { ShowActivated = false, Width = 750, Height = 500 };
+        try
+        {
+            window.Show();
+            await window.OpenImageAsync(path);
+            var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
+            var image = (Image)window.FindName("DisplayedImage");
+            ((ToggleButton)window.FindName("FitWheelZoomButton")).IsChecked = true;
+            Rect workArea = WindowScreen.WorkArea(window, alignVisibleFrame: true);
+            int stateChanges = 0;
+            window.StateChanged += (_, _) => stateChanges++;
+
+            double initialScale = Scale();
+            int steps = 16;
+            window.HandleViewportWheel(CanvasCenter(), 120 * steps, ModifierKeys.None);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            var fullSize = new Size(window.ActualWidth, window.ActualHeight);
+            Assert.InRange(Math.Abs(fullSize.Width - workArea.Width), 0, 1);
+            Assert.InRange(Math.Abs(fullSize.Height - workArea.Height), 0, 1);
+            Assert.InRange(Math.Abs(window.Left - workArea.Left), 0, 1);
+            Assert.InRange(Math.Abs(window.Top - workArea.Top), 0, 1);
+            Assert.False(window.SpreadViewState!.Value.IsFitMode);
+            Assert.Equal(initialScale * Math.Pow(ViewerSettings.WheelZoomFactor, steps), Scale(), 6);
+
+            Point anchor = CanvasCenter() + new Vector(40, 20);
+            Point imageAnchor = ImagePointAt(anchor);
+            double previousScale = Scale();
+            window.HandleViewportWheel(anchor, 120, ModifierKeys.None);
+            Assert.Equal(fullSize, new Size(window.ActualWidth, window.ActualHeight));
+            Assert.Equal(previousScale * ViewerSettings.WheelZoomFactor, Scale(), 6);
+            Assert.Equal(imageAnchor.X, ImagePointAt(anchor).X, 6);
+            Assert.Equal(imageAnchor.Y, ImagePointAt(anchor).Y, 6);
+
+            window.HandleViewportWheel(anchor, int.MaxValue, ModifierKeys.None);
+            Assert.Equal(ViewerSettings.MaximumZoomScale, Scale());
+            window.HandleViewportWheel(anchor, 120, ModifierKeys.None);
+            Assert.Equal(fullSize, new Size(window.ActualWidth, window.ActualHeight));
+            Assert.Equal(ViewerSettings.MaximumZoomScale, Scale());
+            window.HandleViewportWheel(CanvasCenter(), -120 * (steps + 8), ModifierKeys.None);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.True(window.ActualWidth < fullSize.Width);
+            Assert.True(window.ActualHeight < fullSize.Height);
+            Assert.True(window.SpreadViewState!.Value.IsFitMode);
+            Assert.Equal(0, stateChanges);
+
+            Point CanvasCenter() => new(canvas.ActualWidth / 2, canvas.ActualHeight / 2);
+            Matrix Transform() => ((MatrixTransform)image.RenderTransform).Matrix;
+            double Scale() => Transform().M11;
+            Point ImagePointAt(Point position)
+            {
+                Matrix inverse = Transform();
+                inverse.Invert();
+                return inverse.Transform(position);
+            }
+        }
+        finally { window.Close(); File.Delete(path); }
+    });
 
     [Fact]
     public Task DoubleClick_TogglesMaximizeAndCtrlWheelDoesNotAlterRestoreSize()

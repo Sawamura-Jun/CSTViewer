@@ -1,6 +1,5 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -387,8 +386,6 @@ public partial class MainWindow : Window
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // 入力欄では文字入力・コピーなどを優先し、画像操作のキーを横取りしない。
-        if (Keyboard.FocusedElement is TextBoxBase || e.OriginalSource is TextBoxBase) return;
         if (e.Key == Key.N && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
             e.Handled = true;

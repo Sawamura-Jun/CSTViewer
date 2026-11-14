@@ -30,7 +30,7 @@ public class SaveInteractionTests
             var image = (Image)window.FindName("DisplayedImage");
             var bitmap = image.Source;
             Matrix matrix = ((MatrixTransform)image.RenderTransform).Matrix;
-            ((TextBox)window.FindName("CropSavePathTextBox")).Text = Path.Combine(directory, "unused.tif");
+            window.CropSaveDestination = Path.Combine(directory, "unused.tif");
 
             Assert.True(await window.SaveCurrentFileToDesktopAsync(desktop));
             string target = Path.Combine(desktop, Path.GetFileName(source));
@@ -65,9 +65,8 @@ public class SaveInteractionTests
             {
                 Assert.Equal(target, path);
                 Assert.True(window.IsSpreadBusy);
-                foreach (string name in new[] { "SaveImageButton", "OpenImageButton", "FitImageButton", "DiffImageButton" })
+                foreach (string name in new[] { "SaveImageButton", "OpenImageButton", "FitImageButton", "DiffImageButton", "CropSaveDestinationButton" })
                     Assert.False(((Button)window.FindName(name)).IsEnabled);
-                Assert.False(((TextBox)window.FindName("CropSavePathTextBox")).IsEnabled);
                 Assert.False(((Canvas)window.FindName("ImageViewportCanvas")).IsEnabled);
                 Assert.Equal(Visibility.Visible, ((FrameworkElement)window.FindName("LoadingOverlay")).Visibility);
                 // 確認ダイアログ中の再入と別画像の読み込みも、UIスレッド上で拒否する。

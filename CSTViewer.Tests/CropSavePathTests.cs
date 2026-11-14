@@ -37,6 +37,20 @@ public class CropSavePathTests
         Assert.Equal(Path.GetFullPath("new folder/clip.TIF"), CropSavePath.Resolve(Source, "new folder/clip", Timestamp));
     }
 
+    [Fact]
+    public void RelativeDirectoryAndFilePath_UseSuppliedBaseDirectory()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("CSTViewer-crop-path-");
+        try
+        {
+            Assert.Equal(Path.Combine(directory.FullName, "scan_20261011_123456_789.TIF"),
+                CropSavePath.Resolve(Source, ".", Timestamp, directory.FullName));
+            Assert.Equal(Path.Combine(directory.FullName, "new folder", "clip.TIF"),
+                CropSavePath.Resolve(Source, "new folder/clip", Timestamp, directory.FullName));
+        }
+        finally { directory.Delete(); }
+    }
+
     [Theory]
     [InlineData("source.jpeg", "clip.jpg", "clip.jpeg")]
     [InlineData("source.png", "clip.tif", "clip.png")]

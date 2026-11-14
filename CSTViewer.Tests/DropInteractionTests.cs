@@ -56,22 +56,22 @@ public class DropInteractionTests
                 canvas.RaiseEvent(wheel);
                 Assert.Equal(BitmapScalingMode.NearestNeighbor, RenderOptions.GetBitmapScalingMode(image));
                 var before = ((System.Windows.Media.MatrixTransform)image.RenderTransform).Matrix;
-                DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-                while (((BitmapSource)image.Source).PixelWidth <= firstPreview.PixelWidth && DateTime.UtcNow < deadline)
-                    await Task.Delay(20);
-                Assert.True(((BitmapSource)image.Source).PixelWidth > firstPreview.PixelWidth);
-                Assert.Equal(BitmapScalingMode.NearestNeighbor, RenderOptions.GetBitmapScalingMode(image));
-                // Bitmapを差し替えても、元画像の座標とパン・ズーム位置は変えない。
+                var regionImage = (Image)window.FindName("DetailRegionImage");
+                await WaitForAsync(() => regionImage.Source is not null);
+                Assert.Same(firstPreview, image.Source);
+                Assert.Equal(regionImage.Width, ((BitmapSource)regionImage.Source).PixelWidth);
+                Assert.Equal(BitmapScalingMode.NearestNeighbor, RenderOptions.GetBitmapScalingMode(regionImage));
+                // 領域画像を重ねても、元画像の座標とパン・ズーム位置は変えない。
                 Assert.Equal(before, ((System.Windows.Media.MatrixTransform)image.RenderTransform).Matrix);
                 Assert.Equal(2000, image.Width);
                 ((Button)window.FindName("FitImageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                // 全体表示に戻っても、キャッシュ済みの詳細画像を適切な倍率で表示できる。
-                Assert.True(((BitmapSource)image.Source).PixelWidth >= firstPreview.PixelWidth);
+                // ページ方向に合わせて画面が広がっても、全体プレビューは保持する。
+                Assert.Same(firstPreview, image.Source);
                 Assert.Contains("(Fit)", ((TextBlock)window.FindName("ZoomStatusText")).Text);
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -79,7 +79,7 @@ public class DropInteractionTests
     }
 
     [Fact]
-    public Task PreviewZoom_UpdatesScalingModeWhenDecodedOrCachedDetailReplacesPreview()
+    public Task PreviewZoom_UpdatesScalingModeForDecodedOrCachedDetailRegion()
     {
         return RunOnStaAsync(async () =>
         {
@@ -102,6 +102,8 @@ public class DropInteractionTests
                 await window.OpenImageAsync(path);
                 var image = (Image)window.FindName("DisplayedImage");
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
+                var regionImage = (Image)window.FindName("DetailRegionImage");
+                var detailField = typeof(MainWindow).GetField("_currentDetailRegion", BindingFlags.Instance | BindingFlags.NonPublic)!;
                 BitmapSource? firstDetail = null;
                 for (int attempt = 0; attempt < 2; attempt++)
                 {
@@ -111,17 +113,20 @@ public class DropInteractionTests
                         { RoutedEvent = UIElement.MouseWheelEvent });
                     // 元画像に対して縮小中でも、プレビューの画素を拡大する間は輪郭を保つ。
                     Assert.Equal(BitmapScalingMode.NearestNeighbor, RenderOptions.GetBitmapScalingMode(image));
-                    DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-                    while (ReferenceEquals(preview, image.Source) && DateTime.UtcNow < deadline)
-                        await Task.Delay(20);
-                    var detail = Assert.IsAssignableFrom<BitmapSource>(image.Source);
-                    Assert.True(detail.PixelWidth > preview.PixelWidth);
-                    // 詳細画像の差し替え後は縮小描画になるため、補間方式も更新する。
-                    Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                    await WaitForAsync(() => regionImage.Source is not null
+                        && detailField.GetValue(window) is ImageDetailRegion { Rectangle: { X: 0, Y: 0, Width: 4000, Height: 2000 } }
+                        && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
+                    var detail = Assert.IsAssignableFrom<BitmapSource>(regionImage.Source);
+                    Assert.Same(preview, image.Source);
+                    Assert.True(detail.PixelWidth / regionImage.Width > preview.PixelWidth / image.Width);
+                    // 高精細領域は縮小描画になるため、領域側の補間方式を更新する。
+                    Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
+                    // 領域画像から全体画像への更新を待ってから、再訪時のキャッシュ再利用を比較する。
                     if (attempt == 0)
                     {
                         firstDetail = detail;
                         ((Button)window.FindName("NextPageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Assert.Null(regionImage.Source);
                         ((Button)window.FindName("PreviousPageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     }
                     else Assert.Same(firstDetail, detail);
@@ -129,7 +134,7 @@ public class DropInteractionTests
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -137,7 +142,7 @@ public class DropInteractionTests
     }
 
     [Fact]
-    public Task RepeatedZoom_KeepsPreviewUntilLastWheelEventSettles()
+    public Task RepeatedZoom_KeepsPreviewAndRefinesDetailAfterInteraction()
     {
         return RunOnStaAsync(async () =>
         {
@@ -153,10 +158,10 @@ public class DropInteractionTests
                 var image = (Image)window.FindName("DisplayedImage");
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
                 var preview = (BitmapSource)image.Source;
+                var regionImage = (Image)window.FindName("DetailRegionImage");
                 RaiseWheel(canvas, 1);
-                await WaitForAsync(() => !ReferenceEquals(preview, image.Source));
-                var detail = image.Source;
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                await WaitForAsync(() => regionImage.Source is not null);
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
 
                 RaiseWheel(canvas, 1);
                 Assert.Same(preview, image.Source);
@@ -164,15 +169,20 @@ public class DropInteractionTests
                 await Task.Delay(ViewerSettings.ZoomInteractionIdleMilliseconds * 2 / 3);
                 RaiseWheel(canvas, 1);
                 await Task.Delay(ViewerSettings.ZoomInteractionIdleMilliseconds * 2 / 3);
-                // 最初の入力から220msを過ぎても、連続操作中はプレビューを維持する。
+                // 連続操作中は高精細領域を隠し、くり抜きのないプレビューだけを描画する。
                 Assert.Same(preview, image.Source);
-                await WaitForAsync(() => ReferenceEquals(detail, image.Source));
-                Assert.Equal(BitmapScalingMode.NearestNeighbor, RenderOptions.GetBitmapScalingMode(image));
-                Assert.Same(detail, image.Source);
+                Assert.Null(regionImage.Source);
+                Assert.Equal(Visibility.Collapsed, regionImage.Visibility);
+                Assert.Null(image.Clip);
+                // 停止後は新しい倍率に合う高精細画像を表示し、縮小補間を維持する。
+                await WaitForAsync(() => regionImage.Source is not null
+                    && regionImage.Visibility == Visibility.Visible
+                    && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
+                Assert.Same(preview, image.Source);
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -180,7 +190,7 @@ public class DropInteractionTests
     }
 
     [Fact]
-    public Task ZoomOut_ReducesIntermediateResolutionAndReusesCachedDetail()
+    public Task ZoomOut_ReusesCompletedFullPageAcrossZoomLevels()
     {
         return RunOnStaAsync(async () =>
         {
@@ -198,43 +208,51 @@ public class DropInteractionTests
                 var image = (Image)window.FindName("DisplayedImage");
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
                 var preview = (BitmapSource)image.Source;
+                var regionImage = (Image)window.FindName("DetailRegionImage");
                 RaiseWheel(canvas, 8);
-                await WaitForAsync(() => ((BitmapSource)image.Source).PixelWidth == 4000);
-                var fullDetail = (BitmapSource)image.Source;
+                var detailField = typeof(MainWindow).GetField("_currentDetailRegion", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                var zoomField = typeof(MainWindow).GetField("_isZoomInteracting", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                await WaitForAsync(() => detailField.GetValue(window) is ImageDetailRegion detail
+                    && detail.Bitmap.PixelWidth == 4000 && detail.Bitmap.PixelHeight == 2000);
+                var fullDetail = (ImageDetailRegion)detailField.GetValue(window)!;
 
                 RaiseWheel(canvas, -7);
                 var matrix = ((MatrixTransform)image.RenderTransform).Matrix;
-                // 最初の縮小入力で、解像度が不足していてもプレビューへ戻す。
+                // 完成した全体画像を保ち、表示倍率に合う段階画像だけを切り替える。
                 Assert.Same(preview, image.Source);
-                await WaitForAsync(() => !ReferenceEquals(preview, image.Source)
-                    && ((BitmapSource)image.Source).PixelWidth < fullDetail.PixelWidth);
-                var reduced = (BitmapSource)image.Source;
-                Assert.True(reduced.PixelWidth > preview.PixelWidth);
+                await WaitForAsync(() => !(bool)zoomField.GetValue(window)!
+                    && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
+                Assert.Same(fullDetail, detailField.GetValue(window));
+                var reduced = (BitmapSource)regionImage.Source;
                 Assert.True(reduced.IsFrozen);
                 var dpi = VisualTreeHelper.GetDpi(window);
                 double displayScale = matrix.M11 * Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
-                int level = BitmapMipmapCache.RequiredLevel(displayScale);
-                Assert.Equal(4000 / (1 << level), reduced.PixelWidth);
+                Assert.True(reduced.PixelWidth >= regionImage.Width * Math.Min(1, displayScale) - 1);
                 Assert.Equal(matrix, ((MatrixTransform)image.RenderTransform).Matrix);
                 Assert.Equal(4000, image.Width);
                 Assert.Equal(2000, image.Height);
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
 
                 RaiseWheel(canvas, 7);
                 Assert.Same(preview, image.Source);
-                await WaitForAsync(() => ReferenceEquals(fullDetail, image.Source));
+                await WaitForAsync(() => !(bool)zoomField.GetValue(window)!);
+                Assert.Same(fullDetail, detailField.GetValue(window));
                 RaiseWheel(canvas, -7);
                 Assert.Same(preview, image.Source);
-                await WaitForAsync(() => ReferenceEquals(reduced, image.Source));
+                await WaitForAsync(() => !(bool)zoomField.GetValue(window)! && ReferenceEquals(reduced, regionImage.Source));
+                Assert.Same(fullDetail, detailField.GetValue(window));
                 ((Button)window.FindName("FitImageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Assert.True(((BitmapSource)image.Source).PixelWidth <= reduced.PixelWidth);
+                Assert.Same(preview, image.Source);
+                await WaitForAsync(() => regionImage.Source is not null
+                    && regionImage.Width == 4000 && regionImage.Height == 2000
+                    && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
                 Assert.Contains("(Fit)", ((TextBlock)window.FindName("ZoomStatusText")).Text);
                 // 詳細画像の読み込みやキャッシュ再利用でも、ログを作成しない。
                 Assert.False(File.Exists(logPath));
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -276,7 +294,7 @@ public class DropInteractionTests
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -292,7 +310,7 @@ public class DropInteractionTests
     };
 
     [Fact]
-    public Task ContinuousZoomOut_KeepsPreviewThroughAllWheelSteps()
+    public Task ContinuousZoomOut_KeepsPreviewAndRefinesDetailRegionAtFit()
     {
         return RunOnStaAsync(async () =>
         {
@@ -308,9 +326,10 @@ public class DropInteractionTests
                 var image = (Image)window.FindName("DisplayedImage");
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
                 var preview = image.Source;
+                var regionImage = (Image)window.FindName("DetailRegionImage");
                 RaiseWheel(canvas, 8);
-                await WaitForAsync(() => ((BitmapSource)image.Source).PixelWidth == 4000);
-                // 合計220msを超える連続入力でも、途中で詳細画像へ戻さない。
+                await WaitForAsync(() => regionImage.Source is not null);
+                // 合計220msを超える連続入力でも、全体プレビューを差し替えない。
                 for (int step = 0; step < 8; step++)
                 {
                     RaiseWheel(canvas, -1);
@@ -319,14 +338,16 @@ public class DropInteractionTests
                     Assert.Same(preview, image.Source);
                 }
                 Assert.Contains("(Fit)", ((TextBlock)window.FindName("ZoomStatusText")).Text);
-                await WaitForAsync(() => !ReferenceEquals(preview, image.Source));
-                Assert.True(((BitmapSource)image.Source).PixelWidth <= 2000);
+                Assert.Same(preview, image.Source);
+                await WaitForAsync(() => regionImage.Source is not null
+                    && regionImage.Width == 4000 && regionImage.Height == 2000
+                    && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
                 Assert.Equal(4000, image.Width);
                 Assert.Equal(2000, image.Height);
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -350,23 +371,25 @@ public class DropInteractionTests
                 var image = (Image)window.FindName("DisplayedImage");
                 var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
                 var preview = image.Source;
+                var regionImage = (Image)window.FindName("DetailRegionImage");
                 RaiseWheel(canvas, 1);
-                await WaitForAsync(() => !ReferenceEquals(preview, image.Source));
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                await WaitForAsync(() => regionImage.Source is not null);
+                Assert.Same(preview, image.Source);
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
                 canvas.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                     System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount, System.Windows.Input.MouseButton.Left)
                     { RoutedEvent = UIElement.MouseLeftButtonDownEvent });
                 Assert.True(canvas.IsMouseCaptured);
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
                 await Task.Delay(ViewerSettings.DetailLoadDelayMilliseconds + 100);
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
                 // 表示領域外でキャプチャが解除されても、補間品質を維持する。
                 canvas.ReleaseMouseCapture();
-                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
+                Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(regionImage));
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -411,7 +434,7 @@ public class DropInteractionTests
             finally
             {
                 if (held) gate.Release();
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -473,7 +496,7 @@ public class DropInteractionTests
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 File.Delete(replacement);
                 await DeleteLogAsync(logPath);
@@ -499,7 +522,7 @@ public class DropInteractionTests
                 await loading;
                 Assert.Null(((Image)window.FindName("DisplayedImage")).Source);
             }
-            finally { window.Close(); File.Delete(path); await DeleteLogAsync(logPath); }
+            finally { await CloseAndWaitForLoadsAsync(window); File.Delete(path); await DeleteLogAsync(logPath); }
         });
     }
 
@@ -554,7 +577,7 @@ public class DropInteractionTests
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
                 await DeleteLogAsync(logPath);
             }
@@ -614,7 +637,7 @@ public class DropInteractionTests
             }
             finally
             {
-                window.Close();
+                await CloseAndWaitForLoadsAsync(window);
                 File.Delete(path);
             }
         });
@@ -653,6 +676,18 @@ public class DropInteractionTests
             [data, DragDropKeyStates.None, DragDropEffects.Copy, window, new Point()], null)!;
         args.RoutedEvent = routedEvent;
         return args;
+    }
+
+    private static async Task CloseAndWaitForLoadsAsync(MainWindow window)
+    {
+        var sessions = new[] { "_session", "_openingSession" }
+            .Select(name => typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window))
+            .OfType<ImageLoadSession>().Distinct().ToArray();
+        window.Close();
+        // Dispatcherを終了する前に、キャンセルされた読み込みがデコード枠を解放するまで待つ。
+        await WaitForAsync(() => !(bool)typeof(MainWindow).GetField("_isDetailLoading", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!
+            && sessions.All(session => !session.IsPreloading
+                && Enumerable.Range(0, session.PageCount).All(index => !session.IsFullPageLoading(index))));
     }
 
     private static async Task DeleteLogAsync(string logPath)

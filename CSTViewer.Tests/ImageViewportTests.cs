@@ -7,6 +7,7 @@ public class ImageViewportTests
     [Theory]
     [InlineData(2000, 1000, 0.5, 0, 125)]
     [InlineData(1000, 2000, 0.375, 312.5, 0)]
+    [InlineData(10, 10, ViewerSettings.MaximumZoomScale, 340, 215)]
     public void Fit_PreservesAspectRatioAndCentersImage(double width, double height,
         double scale, double offsetX, double offsetY)
     {
@@ -47,15 +48,18 @@ public class ImageViewportTests
     }
 
     [Fact]
-    public void Zoom_RespectsMaximumScaleAndRemainsFinite()
+    public void Zoom_ClampsToMaximumScaleEvenWhenWheelFactorOverflows()
     {
         var viewport = CreateViewport(new Size(2000, 1000), new Size(1000, 500));
-        viewport.Zoom(new Point(500, 250), int.MaxValue);
-        viewport.Zoom(new Point(500, 250), 120);
-
+        var anchor = new Point(500, 250);
+        Point imagePoint = ImagePointAt(viewport, anchor);
+        viewport.Zoom(anchor, int.MaxValue);
         Assert.Equal(ViewerSettings.MaximumZoomScale, viewport.Scale);
+        AssertPoint(imagePoint, ImagePointAt(viewport, anchor));
         Assert.True(double.IsFinite(viewport.Offset.X));
         Assert.True(double.IsFinite(viewport.Offset.Y));
+        viewport.Zoom(anchor, 120);
+        Assert.Equal(ViewerSettings.MaximumZoomScale, viewport.Scale);
     }
 
     [Fact]

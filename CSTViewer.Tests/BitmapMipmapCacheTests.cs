@@ -37,7 +37,7 @@ public class BitmapMipmapCacheTests
     }
 
     [Fact]
-    public async Task Cache_BoundsMemoryAndBitmapCount()
+    public async Task Cache_BoundsOptionalMemoryAndPageCount()
     {
         var source = PreviewLoadingTests.CreateBitmap(128, 64, 31);
         var byteCache = new BitmapMipmapCache(64, 64 * 32 * 3 + 32 * 16 * 3);
@@ -48,14 +48,34 @@ public class BitmapMipmapCacheTests
         Assert.Equal(2, byteCache.Count);
         Assert.Equal((32 * 16 + 16 * 8) * 3, byteCache.ByteSize);
         var countCache = new BitmapMipmapCache(1, 1024 * 1024);
-        await countCache.GetOrCreateAsync(source, 1, CancellationToken.None);
-        await countCache.GetOrCreateAsync(source, 2, CancellationToken.None);
-        Assert.Null(countCache.Get(source, 1));
-        Assert.NotNull(countCache.Get(source, 2));
+        await countCache.GetOrCreateAsync(source, 1, CancellationToken.None, pageIndex: 1);
+        await countCache.GetOrCreateAsync(source, 2, CancellationToken.None, pageIndex: 2);
+        Assert.Null(countCache.Get(source, 1, pageIndex: 1));
+        Assert.NotNull(countCache.Get(source, 2, pageIndex: 2));
         Assert.Equal(1, countCache.Count);
         var tooSmallCache = new BitmapMipmapCache(64, 1);
         await tooSmallCache.GetOrCreateAsync(source, 1, CancellationToken.None);
         Assert.Equal(0, tooSmallCache.Count);
+    }
+
+    [Fact]
+    public async Task PageLimit_KeepsAllLevelsForSixteenPagesAndEvictsTheLeastRecentPage()
+    {
+        var cache = new BitmapMipmapCache(16);
+        var source = PreviewLoadingTests.CreateBitmap(128, 64, 31);
+        for (int page = 0; page < 16; page++)
+        {
+            await cache.GetOrCreateAsync(source, 1, CancellationToken.None, page);
+            await cache.GetOrCreateAsync(source, 2, CancellationToken.None, page);
+        }
+        Assert.Equal(16, cache.PageCount);
+        Assert.Equal(32, cache.Count);
+        Assert.NotNull(cache.Get(source, 1, 0));
+        await cache.GetOrCreateAsync(source, 1, CancellationToken.None, 16);
+        Assert.Equal(16, cache.PageCount);
+        Assert.Null(cache.Get(source, 1, 1));
+        Assert.Null(cache.Get(source, 2, 1));
+        Assert.NotNull(cache.Get(source, 2, 0));
     }
 
     [Fact]

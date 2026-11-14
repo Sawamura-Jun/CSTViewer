@@ -5,25 +5,119 @@ namespace CSTViewer.Tests;
 public class WindowSizingTests
 {
     [Theory]
-    [InlineData(2000, 1000, 1000, 500)]
-    // 縦長画像は現行の高さ805DIPに合わせる。幅402.5は偶数丸めで402になる。
-    [InlineData(1000, 2000, 402, 805)]
-    [InlineData(1000, 1000, 1000, 1000)]
-    [InlineData(1, 10000, 1, 805)]
-    public void StartupViewport_UsesPythonAspectRatio(double width, double height, double expectedWidth, double expectedHeight)
+    [InlineData(1)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void SpreadFrame_CompensatesInvisibleBordersAtDifferentDpi(double scale)
     {
-        Assert.Equal(new Size(expectedWidth, expectedHeight), WindowSizing.StartupViewportSize(new Size(width, height)));
+        double border = Math.Round(7 * scale);
+        var outer = new Rect(100, 200, 1000, 800);
+        var frame = new Rect(100 + border, 200, 1000 - 2 * border, 800 - border);
+        // 負の画面座標と奇数ピクセル幅でも、左右が同じ境界を共有する。
+        var left = new Rect(-1921, -1080, 960, 1041);
+        var right = new Rect(-961, -1080, 961, 1041);
+        Rect leftOuter = WindowSizing.OuterBoundsForVisibleFrame(left, outer, frame);
+        Rect rightOuter = WindowSizing.OuterBoundsForVisibleFrame(right, outer, frame);
+        Assert.Equal(left.Left - border, leftOuter.Left);
+        Assert.Equal(left.Top, leftOuter.Top);
+        Assert.Equal(left.Height + border, leftOuter.Height);
+        Assert.Equal(left.Right, leftOuter.Right - border);
+        Assert.Equal(right.Left, rightOuter.Left + border);
+        Assert.Equal(leftOuter.Right - border, rightOuter.Left + border);
+        Assert.Equal(right.Right, rightOuter.Right - border);
     }
 
     [Fact]
-    public void StartupBounds_IncludesChromeAndCentersWithinWorkArea()
+    public void SpreadFrame_WithoutInvisibleBordersKeepsRequestedBounds()
     {
+        var frame = new Rect(100, 200, 1000, 800);
+        var requested = new Rect(0, 0, 960, 1040);
+        Assert.Equal(requested, WindowSizing.OuterBoundsForVisibleFrame(requested, frame, frame));
+    }
+
+    [Theory]
+    [InlineData(2000, 1000, 1280, 720)]
+    [InlineData(1000, 2000, 492.2, 1004.4)]
+    public void StartupBounds_UsesWholeMonitorRatioAndFitsOtherAxis(double width, double height,
+        double expectedWidth, double expectedHeight)
+    {
+        var monitor = new Rect(-1920, 0, 1920, 1080);
         var area = new Rect(-1920, 40, 1920, 1040);
-        var bounds = WindowSizing.StartupBounds(new Size(2000, 1000), new Size(40, 100), new Size(600, 400), area);
-        Assert.Equal(new Rect(-1480, 260, 1040, 600), bounds);
-        var square = WindowSizing.StartupBounds(new Size(1000, 1000), new Size(40, 100), new Size(600, 400), area);
-        Assert.Equal(1040, square.Height);
-        Assert.True(area.Contains(square));
+        var bounds = WindowSizing.StartupBounds(new Size(width, height), new Size(40, 100),
+            new Size(200, 200), monitor, area);
+        // 高さ93%では寸法が小数になるため、浮動小数点の計算誤差を許容する。
+        Assert.Equal(expectedWidth, bounds.Width, 8);
+        Assert.Equal(expectedHeight, bounds.Height, 8);
+        Assert.Equal(width / height, (bounds.Width - 40) / (bounds.Height - 100), 8);
+        Assert.Equal(-960, bounds.Left + bounds.Width / 2, 8);
+        Assert.Equal(560, bounds.Top + bounds.Height / 2, 8);
+        Assert.True(area.Contains(bounds));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(2)]
+    public void StartupBounds_PreservesMonitorRatioAtDifferentDpi(double dpiScale)
+    {
+        // 物理ピクセルからDIPへ変換済みのモニター寸法で計算する。
+        var monitor = new Rect(-2560 / dpiScale, -1440 / dpiScale, 2560 / dpiScale, 1440 / dpiScale);
+        var area = new Rect(monitor.Left, monitor.Top, monitor.Width, 1400 / dpiScale);
+        var chrome = new Size(40, 100);
+        var landscape = WindowSizing.StartupBounds(new Size(2000, 1000), chrome, new Size(200, 200), monitor, area);
+        var portrait = WindowSizing.StartupBounds(new Size(1000, 2000), chrome, new Size(200, 200), monitor, area);
+        Assert.Equal(2560 * 2.0 / 3.0, landscape.Width * dpiScale, 8);
+        Assert.Equal(1440 * 0.93, portrait.Height * dpiScale, 8);
+        Assert.Equal(2, (landscape.Width - chrome.Width) / (landscape.Height - chrome.Height), 8);
+        Assert.Equal(0.5, (portrait.Width - chrome.Width) / (portrait.Height - chrome.Height), 8);
+        Assert.True(area.Contains(landscape));
+        Assert.True(area.Contains(portrait));
+    }
+
+    [Theory]
+    [InlineData(1000, 1000, 1280, 1040)]
+    [InlineData(1, 10000, 600, 1004.4)]
+    [InlineData(10000, 1, 1280, 400)]
+    public void StartupBounds_RespectsMinimumSizeAndWorkArea(double width, double height,
+        double expectedWidth, double expectedHeight)
+    {
+        var monitor = new Rect(0, 0, 1920, 1080);
+        var area = new Rect(40, 0, 1880, 1040);
+        var bounds = WindowSizing.StartupBounds(new Size(width, height), new Size(40, 100),
+            new Size(600, 400), monitor, area);
+        Assert.Equal(expectedWidth, bounds.Width, 8);
+        Assert.Equal(expectedHeight, bounds.Height, 8);
+        Assert.True(area.Contains(bounds));
+    }
+
+    [Fact]
+    public void StartupBounds_ClampsRatioAxisBeforeFittingOtherAxis()
+    {
+        var monitor = new Rect(0, 0, 800, 600);
+        var area = new Rect(0, 0, 800, 500);
+        var landscape = WindowSizing.StartupBounds(new Size(2000, 1000), new Size(40, 100),
+            new Size(600, 200), monitor, area);
+        var portrait = WindowSizing.StartupBounds(new Size(1000, 2000), new Size(40, 100),
+            new Size(200, 200), monitor, area);
+        Assert.Equal(new Size(600, 380), landscape.Size);
+        Assert.Equal(new Size(240, 500), portrait.Size);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(1, 24, 24)]
+    [InlineData(2, 48, 40)]
+    [InlineData(5, 100, 40)]
+    [InlineData(6, 0, 0)]
+    public void StartupPlacement_CascadesWithinTheWorkAreaAndReturnsToCenter(int index, double x, double y)
+    {
+        var area = new Rect(-2000, -900, 600, 480);
+        var size = new Size(400, 400);
+        Rect bounds = WindowSizing.StartupPlacement(size, area, index);
+        Assert.Equal(new Rect(-1900 + x, -860 + y, size.Width, size.Height), bounds);
+        Assert.True(area.Contains(bounds));
     }
 
     [Theory]
@@ -54,6 +148,20 @@ public class WindowSizingTests
             new Size(40, 100), new Size(50, 50), area);
         Assert.Equal(new Size(141, 301), bounds.Size);
         Assert.Equal(area.BottomRight, bounds.BottomRight);
+    }
+
+    [Theory]
+    [InlineData(2000, 500, 1600, 550)]
+    [InlineData(800, 2000, 760, 900)]
+    public void ImageZoomBounds_GrowsRemainingAxisAfterOtherAxisReachesWorkArea(double imageWidth,
+        double imageHeight, double expectedWidth, double expectedHeight)
+    {
+        var area = new Rect(0, 0, 1600, 900);
+        var bounds = WindowSizing.ImageZoomBounds(new Point(800, 450), new Size(imageWidth, imageHeight),
+            0.9, new Size(40, 100), new Size(600, 400), area);
+
+        Assert.Equal(new Size(expectedWidth, expectedHeight), bounds.Size);
+        Assert.True(area.Contains(bounds));
     }
 
     [Fact]

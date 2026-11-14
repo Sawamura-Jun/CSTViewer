@@ -1,0 +1,24 @@
+<Window x:Class="CSTViewer.CropSaveDestinationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CSTViewer"
+        Title="Save to" Width="{x:Static local:ViewerSettings.CropSaveDestinationWindowWidth}"
+        SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#202020" Foreground="#E6E6E6" FontFamily="Segoe UI, Yu Gothic UI"
+        FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+        FocusManager.FocusedElement="{Binding ElementName=CropSavePathTextBox}">
+    <StackPanel Margin="16">
+        <Label x:Name="CropSaveDestinationLabel" Content="Save location for crops and diffs"
+               Target="{Binding ElementName=CropSavePathTextBox}" Padding="0" Margin="0,0,0,6" />
+        <TextBox x:Name="CropSavePathTextBox"
+                 AutomationProperties.LabeledBy="{Binding ElementName=CropSaveDestinationLabel}" />
+        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap"
+                   Text="End a folder path with \. Enter a filename alone to use the source folder. Leave blank to use the source folder and an automatic filename." />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="ConfirmDestinationButton" Content="OK" IsDefault="True"
+                    Margin="0,0,8,0" Click="ConfirmDestinationButton_Click" />
+            <Button x:Name="CancelDestinationButton" Content="Cancel" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

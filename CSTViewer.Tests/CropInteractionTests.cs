@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -121,7 +122,7 @@ public class CropInteractionTests
     [Theory]
     [InlineData(TiffCompressOption.Zip, false)]
     [InlineData(TiffCompressOption.Lzw, true)]
-    public Task InsideClick_SavesToTextboxCopiesPngAndKeepsSelection(TiffCompressOption compression, bool extraPng)
+    public Task InsideClick_SavesToConfiguredDestinationCopiesPngAndKeepsSelection(TiffCompressOption compression, bool extraPng)
     {
         return RunOnStaAsync(async () =>
         {
@@ -135,27 +136,29 @@ public class CropInteractionTests
                 await window.OpenImageAsync(path);
                 window.UpdateLayout();
                 Select(window);
-                var textbox = (TextBox)window.FindName("CropSavePathTextBox");
-                textbox.Text = Path.ChangeExtension(output, ".png");
+                window.CropSaveDestination = Path.ChangeExtension(output, ".png");
+                var destinationButton = (Button)window.FindName("CropSaveDestinationButton");
                 Rect before = GetSelection(window).ImageRectangle;
                 Point center = ImagePoint(window, new Point(700, 350));
-                Assert.True(window.BeginCropAdjustment(center));
+                Assert.True(window.BeginCropAdjustment(center),
+                    $"切り抜き調整を開始できませんでした。選択範囲={before}、操作位置={center}");
                 byte[]? copiedPng = null;
                 Task<bool> save = window.CompleteCropAdjustmentAsync(center, data =>
                 {
                     Assert.Equal((1000, 500), (data.GetImage().PixelWidth, data.GetImage().PixelHeight));
                     copiedPng = Assert.IsAssignableFrom<MemoryStream>(data.GetData("PNG")).ToArray();
                 });
-                Assert.False(textbox.IsEnabled);
+                Assert.False(destinationButton.IsEnabled,
+                    $"保存処理中に保存先ボタンが無効化されていません。操作状態={GetSelection(window).Mode}、保存タスク完了={save.IsCompleted}、状態表示={((TextBlock)window.FindName("PreloadStatusText")).Text}");
                 Assert.False(await window.SaveConfiguredCropAsync(_ => Assert.Fail("二重実行されました。")));
-                Assert.True(await save);
+                Assert.True(await save, ((TextBlock)window.FindName("PreloadStatusText")).Text);
                 Assert.NotNull(copiedPng);
                 Assert.True(File.Exists(output));
                 Assert.Equal(TiffEncoding.Read(path, 0).Compression, TiffEncoding.Read(output, 0).Compression);
                 Assert.Equal(extraPng, File.Exists(Path.ChangeExtension(output, ".png")));
                 if (extraPng) Assert.Equal(copiedPng, File.ReadAllBytes(Path.ChangeExtension(output, ".png")));
                 Assert.Equal(before, GetSelection(window).ImageRectangle);
-                Assert.True(textbox.IsEnabled);
+                Assert.True(destinationButton.IsEnabled);
 
                 // 指定名への保存はPython版と同じく上書きし、コピー失敗も保存を取り消さない。
                 File.WriteAllText(output, "old output");
@@ -175,8 +178,9 @@ public class CropInteractionTests
             {
                 window.Close();
                 File.Delete(path);
-                File.Delete(output);
-                File.Delete(Path.ChangeExtension(output, ".png"));
+                // 保存前にテストが失敗しても、後片付けの例外で本来の失敗を隠さない。
+                if (File.Exists(output)) File.Delete(output);
+                if (File.Exists(Path.ChangeExtension(output, ".png"))) File.Delete(Path.ChangeExtension(output, ".png"));
                 if (Directory.Exists(directory)) Directory.Delete(directory);
                 if (Directory.Exists(Path.GetDirectoryName(directory))) Directory.Delete(Path.GetDirectoryName(directory)!);
             }
@@ -184,7 +188,7 @@ public class CropInteractionTests
     }
 
     [Fact]
-    public Task TextboxEditing_DoesNotTriggerImageShortcutsAndSurvivesFileChanges()
+    public Task DestinationDialog_ConfirmsOrDiscardsEditsWithoutTriggeringImageShortcuts()
     {
         return RunOnStaAsync(async () =>
         {
@@ -196,24 +200,88 @@ public class CropInteractionTests
                 await window.OpenImageAsync(path);
                 window.UpdateLayout();
                 Select(window);
-                var textbox = (TextBox)window.FindName("CropSavePathTextBox");
-                textbox.Text = "scan-B-N.tif";
-                var handler = typeof(MainWindow).GetMethod("Window_PreviewKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!;
-                foreach (Key key in new[] { Key.B, Key.N, Key.PageDown, Key.Escape, Key.C })
-                {
-                    var args = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window)!, Environment.TickCount, key)
-                        { RoutedEvent = Keyboard.PreviewKeyDownEvent, Source = textbox };
-                    handler.Invoke(window, [window, args]);
-                    Assert.False(args.Handled);
-                    Assert.True(GetSelection(window).HasSelection);
-                    Assert.Contains("— Page 1 / 2", window.Title);
-                }
+                Assert.Null(window.FindName("CropSavePathTextBox"));
+                Assert.Equal(CropSavePath.DefaultText, window.CropSaveDestination);
+                var button = (Button)window.FindName("CropSaveDestinationButton");
+                const string destination = "scan-B-N.tif";
+
+                await EditDestination(destination, confirm: true);
+                Assert.Equal(destination, window.CropSaveDestination);
+                Assert.True(GetSelection(window).HasSelection);
+                Assert.Contains("— Page 1 / 2", window.Title);
+
                 await window.OpenImageAsync(path);
-                Assert.Equal("scan-B-N.tif", textbox.Text);
+                await EditDestination("cancelled.tif", confirm: false);
+                Assert.Equal(destination, window.CropSaveDestination);
+
+                async Task EditDestination(string text, bool confirm)
+                {
+                    // ShowDialog のメッセージループで、表示されたダイアログの入力欄を操作する。
+                    var edit = window.Dispatcher.InvokeAsync(() =>
+                    {
+                        var dialog = Assert.Single(window.OwnedWindows.OfType<CropSaveDestinationWindow>());
+                        try
+                        {
+                            Assert.False(window.IsActive);
+                            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            Assert.Same(dialog, Assert.Single(window.OwnedWindows.OfType<CropSaveDestinationWindow>()));
+                            var textbox = (TextBox)dialog.FindName("CropSavePathTextBox");
+                            Assert.Equal(window.CropSaveDestination, textbox.Text);
+                            textbox.Text = text;
+                            foreach (Key key in new[] { Key.A, Key.C, Key.D, Key.L, Key.Q, Key.R, Key.S, Key.W, Key.D1, Key.D2, Key.PageDown })
+                            {
+                                var args = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(textbox)!,
+                                    Environment.TickCount, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                                textbox.RaiseEvent(args);
+                                Assert.False(args.Handled);
+                            }
+                            if (confirm)
+                            {
+                                var ok = (Button)dialog.FindName("ConfirmDestinationButton");
+                                ok.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            }
+                        }
+                        finally
+                        {
+                            if (dialog.IsVisible) dialog.Close();
+                        }
+                    }, DispatcherPriority.Background);
+                    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await edit.Task;
+                }
             }
             finally { window.Close(); File.Delete(path); }
         });
     }
+
+    [Fact]
+    public Task HelpButton_ShowsCropDestinationIconAndInstructionsInBothLanguages() => RunOnStaAsync(() =>
+    {
+        var window = CreateWindow();
+        try
+        {
+            window.Show();
+            ((Button)window.FindName("HelpButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var help = Assert.Single(window.OwnedWindows.OfType<HelpWindow>());
+            var languages = (ComboBox)help.FindName("HelpLanguageComboBox");
+            var viewer = (FlowDocumentScrollViewer)help.FindName("HelpDocumentViewer");
+            var toolbarIcon = Assert.IsType<ToolbarIcon>(((Button)window.FindName("CropSaveDestinationButton")).Content);
+            foreach (HelpContent language in languages.Items)
+            {
+                languages.SelectedItem = language;
+                FlowDocument document = viewer.Document;
+                var toolbar = document.Blocks.OfType<Table>().First();
+                TableRow destinationRow = toolbar.RowGroups[0].Rows[^1];
+                var label = Assert.IsType<Paragraph>(destinationRow.Cells[0].Blocks.FirstBlock);
+                var iconContainer = Assert.Single(label.Inlines.OfType<InlineUIContainer>());
+                var icon = Assert.IsType<ToolbarIcon>(Assert.IsType<Border>(iconContainer.Child).Child);
+                Assert.Equal(toolbarIcon.Glyph, icon.Glyph);
+                Assert.Contains(language.Crop.SaveToDescription, new TextRange(document.ContentStart, document.ContentEnd).Text);
+            }
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    });
 
     [Fact]
     public Task CopyCrop_ContainsTransparentPngAndBitmapAndRecoversFromClipboardFailure()

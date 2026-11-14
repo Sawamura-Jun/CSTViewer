@@ -65,6 +65,42 @@ public class SingleInstanceTests
         Assert.Empty(received);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ExtraLaunch_GrantsForegroundPermissionToPipeOwnerBeforeDeliveringRequest(
+        bool withImage, bool permissionAllowed)
+    {
+        string name = PipeName();
+        uint permittedProcessId = 0;
+        uint permittedProcessIdAtDelivery = 0;
+        int permissionRequests = 0;
+        string[]? received = null;
+        using var owner = SingleInstanceBroker.TryStart(name, paths =>
+        {
+            permittedProcessIdAtDelivery = permittedProcessId;
+            received = paths;
+        });
+        Assert.NotNull(owner);
+        string[] paths = withImage ? [@"C:\画像 フォルダー\追加画像.tif"] : [];
+
+        // OSの許可結果に左右されず、許可先・送信順序・要求の転送を検証する。
+        await SingleInstanceBroker.ForwardAsync(name, paths, processId =>
+        {
+            permissionRequests++;
+            permittedProcessId = processId;
+            return permissionAllowed;
+        });
+
+        Assert.Equal(1, permissionRequests);
+        Assert.Equal((uint)Environment.ProcessId, permittedProcessId);
+        Assert.Equal(permittedProcessId, permittedProcessIdAtDelivery);
+        // 前面化が拒否された場合も、画像付き・画像なしの起動要求を失わない。
+        Assert.Equal(paths, received);
+    }
+
     [Fact]
     public async Task InvalidRequest_IsRejectedAndTheNextImageCanStillBeOpened()
     {

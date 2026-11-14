@@ -1,6 +1,9 @@
 using System.IO;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using NetVips;
+using VipsImage = NetVips.Image;
 
 namespace CSTViewer.Tests;
 
@@ -14,6 +17,7 @@ public class ImageLoaderTests
     [InlineData("sample.jpg")]
     [InlineData("sample.bmp")]
     [InlineData("sample.gif")]
+    [InlineData("sample.WebP")]
     public void FindFirstSupportedPath_AcceptsKnownExtensions(string path)
     {
         Assert.Equal(path, ImageLoader.FindFirstSupportedPath([path]));
@@ -25,6 +29,50 @@ public class ImageLoaderTests
         Assert.Equal("first.tif", ImageLoader.FindFirstSupportedPath(
             ["notes.txt", "first.tif", "second.png"]));
         Assert.Null(ImageLoader.FindFirstSupportedPath(["notes.txt", "folder"]));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Webp_LoadsWithAlphaAndSavesCropWithoutFurtherLoss(bool lossless)
+    {
+        string path = TemporaryPath(".WEBP"), output = TemporaryPath(".webp");
+        try
+        {
+            using var raw = VipsImage.NewFromMemory(new byte[] { 5, 15, 25, 255, 20, 40, 60, 127, 30, 60, 90, 0 },
+                3, 1, 4, Enums.BandFormat.Uchar);
+            using var source = raw.Copy(interpretation: Enums.Interpretation.Srgb);
+            source.Webpsave(path, lossless: lossless, exact: true);
+
+            Assert.Equal(new Size(3, 1), ImageLoader.ReadSourceSize(path));
+            BitmapSource loaded = await ImageLoader.LoadAsync(path);
+            Assert.True(loaded.IsFrozen);
+            Assert.Equal(PixelFormats.Bgra32, loaded.Format);
+            var rectangle = new Int32Rect(1, 0, 2, 1);
+            var expected = new byte[8];
+            loaded.CopyPixels(rectangle, expected, expected.Length, 0);
+            Assert.Equal(127, expected[3]);
+            Assert.Equal(0, expected[7]);
+            if (lossless) Assert.Equal(new byte[] { 60, 40, 20, 127, 90, 60, 30, 0 }, expected);
+
+            var crop = await ImageLoader.LoadCropAsync(path, 0, rectangle);
+            var croppedPixels = new byte[8];
+            crop.CopyPixels(croppedPixels, croppedPixels.Length, 0);
+            Assert.Equal(expected, croppedPixels);
+
+            await ImageLoader.SaveCropAsync(path, 0, rectangle, output);
+            BitmapSource saved = await ImageLoader.LoadAsync(output);
+            Assert.Equal((2, 1), (saved.PixelWidth, saved.PixelHeight));
+            var savedPixels = new byte[8];
+            saved.CopyPixels(savedPixels, savedPixels.Length, 0);
+            Assert.Equal(expected, savedPixels);
+            using var exclusiveStream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(output);
+        }
     }
 
     [Theory]

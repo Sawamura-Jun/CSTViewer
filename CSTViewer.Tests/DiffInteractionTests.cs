@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace CSTViewer.Tests;
@@ -24,13 +23,13 @@ public class DiffInteractionTests
             await oldWindow.OpenImageAsync(oldPath);
             await newWindow.OpenImageAsync(newPath);
             string target = Path.Combine(directory, "new_dif.tif");
-            var textbox = (TextBox)newWindow.FindName("CropSavePathTextBox");
-            textbox.Text = "";
+            newWindow.CropSaveDestination = "";
+            var destinationButton = (Button)newWindow.FindName("CropSaveDestinationButton");
             var button = (Button)newWindow.FindName("DiffImageButton");
             Assert.True(button.IsEnabled);
             Task<MainWindow?> creating = newWindow.CreateDiffAsync();
             Assert.False(button.IsEnabled);
-            Assert.False(textbox.IsEnabled);
+            Assert.False(destinationButton.IsEnabled);
             Assert.False(((Button)newWindow.FindName("OpenImageButton")).IsEnabled);
             Assert.Equal(Visibility.Visible, ((ProgressBar)newWindow.FindName("DiffProgressBar")).Visibility);
             Assert.Null(await newWindow.CreateDiffAsync());
@@ -41,7 +40,7 @@ public class DiffInteractionTests
             Assert.True(result.IsVisible);
             Assert.Equal(target, result.DiffImagePath);
             Assert.True(button.IsEnabled);
-            Assert.True(textbox.IsEnabled);
+            Assert.True(destinationButton.IsEnabled);
             Assert.Equal(Visibility.Collapsed, ((ProgressBar)newWindow.FindName("DiffProgressBar")).Visibility);
             Assert.Contains("Diff saved", ((TextBlock)newWindow.FindName("PreloadStatusText")).Text);
         }
@@ -49,7 +48,7 @@ public class DiffInteractionTests
     });
 
     [Fact]
-    public Task Selection_SkipsHiddenMinimizedAndEmptyWindowsAndTextboxKeepsDKey() => RunOnStaAsync(async () =>
+    public Task Selection_SkipsHiddenMinimizedAndEmptyWindowsAndRejectsSameFileDestination() => RunOnStaAsync(async () =>
     {
         string directory = ImageDiffTests.CreateDirectory();
         var controller = new SpreadController();
@@ -78,12 +77,7 @@ public class DiffInteractionTests
             nearest.Hide();
             Assert.Same(farther, controller.NearestImageWindow(source));
 
-            var textbox = (TextBox)source.FindName("CropSavePathTextBox");
-            var args = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(source)!, Environment.TickCount, Key.D)
-            { RoutedEvent = Keyboard.PreviewKeyDownEvent, Source = textbox };
-            source.RaiseEvent(args);
-            Assert.False(args.Handled);
-            textbox.Text = path.ToUpperInvariant();
+            source.CropSaveDestination = path.ToUpperInvariant();
             Assert.Null(await source.CreateDiffAsync());
             Assert.Contains("same file", ((TextBlock)source.FindName("PreloadStatusText")).Text);
         }

@@ -10,10 +10,8 @@ public class ResidentApplicationTests
     public async Task ClosingLastWindow_KeepsProcessAndAcceptsLaterLaunchesWithAndWithoutImages()
     {
         string path = Path.Combine(Path.GetTempPath(), $"CSTViewer-resident-{Guid.NewGuid()}.tif");
-        var encoder = new TiffBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(PreviewLoadingTests.CreateBitmap(80, 60, 137)));
-        using (var stream = File.Create(path)) encoder.Save(stream);
-        using var owner = StartViewer(path);
+        WriteTiff(path);
+        using var owner = StartViewer(null, path);
         try
         {
             await WaitForAsync(owner, () => owner.MainWindowTitle.Contains(Path.GetFileName(path)));
@@ -38,9 +36,49 @@ public class ResidentApplicationTests
         }
     }
 
+    [Fact]
+    public async Task ClosingStartupImage_AllowsDeletingLaunchDirectoryWhileResident()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("CSTViewer-resident-");
+        const string fileName = "startup image.tif";
+        string path = Path.Combine(directory.FullName, fileName);
+        try
+        {
+            WriteTiff(path);
+            // 画像のフォルダーを作業フォルダーに指定し、相対パスで起動する。
+            using var owner = StartViewer(directory.FullName, fileName);
+            try
+            {
+                await WaitForAsync(owner, () => owner.MainWindowTitle.Contains(fileName));
+                await CloseViewerWindowAsync(owner);
+
+                File.Delete(path);
+                Directory.Delete(directory.FullName);
+                Assert.False(owner.HasExited);
+            }
+            finally { await StopTestProcessAsync(owner); }
+        }
+        finally
+        {
+            if (Directory.Exists(directory.FullName))
+            {
+                File.Delete(path);
+                Directory.Delete(directory.FullName);
+            }
+        }
+    }
+
+    private static void WriteTiff(string path)
+    {
+        var encoder = new TiffBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(PreviewLoadingTests.CreateBitmap(80, 60, 137)));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
     private static async Task RunExtraLaunchAsync(params string[] paths)
     {
-        using var process = StartViewer(paths);
+        using var process = StartViewer(null, paths);
         try
         {
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
@@ -56,13 +94,13 @@ public class ResidentApplicationTests
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
     }
 
-    private static Process StartViewer(params string[] paths)
+    private static Process StartViewer(string? workingDirectory, params string[] paths)
     {
         string executable = Path.ChangeExtension(typeof(App).Assembly.Location, ".exe");
         var startInfo = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
-            WorkingDirectory = Path.GetDirectoryName(executable)!
+            WorkingDirectory = workingDirectory ?? Path.GetDirectoryName(executable)!
         };
         foreach (string path in paths) startInfo.ArgumentList.Add(path);
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start the test viewer.");

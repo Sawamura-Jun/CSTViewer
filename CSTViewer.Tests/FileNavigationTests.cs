@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using VipsImage = NetVips.Image;
 
 namespace CSTViewer.Tests;
 
@@ -17,8 +18,8 @@ public class FileNavigationTests
         string directory = CreateDirectory();
         try
         {
-            string[] names = ["10.tif", "2.tiff", "A.tif", "b.TIFF", "c.PNG", "d.jpg", "e.JPEG", "f.bmp", "g.GIF"];
-            foreach (string name in names.Concat(["notes.txt", "image.webp"]))
+            string[] names = ["10.tif", "2.tiff", "A.tif", "b.TIFF", "c.PNG", "d.jpg", "e.JPEG", "f.bmp", "g.GIF", "h.WebP"];
+            foreach (string name in names.Append("notes.txt"))
                 File.WriteAllBytes(Path.Combine(directory, name), []);
             Directory.CreateDirectory(Path.Combine(directory, "folder.tif"));
             string child = Directory.CreateDirectory(Path.Combine(directory, "child")).FullName;
@@ -39,7 +40,6 @@ public class FileNavigationTests
                 Assert.Equal(index + 1 < names.Length ? Path.Combine(directory, names[index + 1]) : null, images.GetNeighbor(1));
             }
             Assert.Null(DirectoryImageList.Create(Path.Combine(directory, "notes.txt")).GetNeighbor(-1));
-            Assert.Null(DirectoryImageList.Create(Path.Combine(directory, "image.webp")).GetNeighbor(-1));
         }
         finally { Directory.Delete(directory, true); }
     }
@@ -98,25 +98,37 @@ public class FileNavigationTests
                 var next = Button(window, "NextFileButton");
                 Assert.False(previous.IsEnabled);
                 Assert.False(next.IsEnabled);
-                Assert.True(RaiseKey(window, Key.N).Handled);
+                Assert.True(RaiseKey(window, Key.W).Handled);
                 await window.OpenImageAsync(first);
                 await WaitForAsync(() => next.IsEnabled);
                 Assert.False(previous.IsEnabled);
+                Assert.True(ToolTipService.GetShowOnDisabled(previous));
                 Button(window, "NextPageButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 Assert.Equal("2 / 2", PageText(window));
+                Assert.True(RaiseKey(window, Key.PageUp).Handled);
+                Assert.Equal("1 / 2", PageText(window));
+                Assert.True(RaiseKey(window, Key.PageDown).Handled);
+                Assert.Equal("2 / 2", PageText(window));
+                Assert.True(RaiseKey(window, Key.D1).Handled);
+                Assert.Equal("1 / 2", PageText(window));
+                Assert.True(RaiseKey(window, Key.D2).Handled);
+                Assert.Equal("2 / 2", PageText(window));
+                Assert.False(RaiseKey(window, Key.B).Handled);
+                Assert.False(RaiseKey(window, Key.N).Handled);
 
                 next.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 await WaitForAsync(() => window.Title.StartsWith("02.TIFF") && next.IsEnabled && previous.IsEnabled);
                 Assert.Equal("1 / 2", PageText(window));
                 AssertPixel(window, 179);
-                Assert.True(RaiseKey(window, Key.N).Handled);
+                Assert.True(RaiseKey(window, Key.W).Handled);
                 await WaitForAsync(() => window.Title.StartsWith("03.tif") && previous.IsEnabled);
                 Assert.False(next.IsEnabled);
+                Assert.True(ToolTipService.GetShowOnDisabled(next));
                 AssertPixel(window, 220);
                 await window.ChangeFileAsync(1);
                 Assert.StartsWith("03.tif", window.Title);
 
-                Assert.True(RaiseKey(window, Key.B).Handled);
+                Assert.True(RaiseKey(window, Key.Q).Handled);
                 await WaitForAsync(() => window.Title.StartsWith("02.TIFF") && next.IsEnabled && previous.IsEnabled);
                 previous.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 await WaitForAsync(() => window.Title.StartsWith("01.tif") && next.IsEnabled);
@@ -141,7 +153,7 @@ public class FileNavigationTests
             var window = CreateWindow();
             try
             {
-                string[] names = ["01.tif", "02.PNG", "03.jpg", "04.JPEG", "05.bmp", "06.GIF", "07.tiff"];
+                string[] names = ["01.tif", "02.PNG", "03.jpg", "04.JPEG", "05.bmp", "06.GIF", "07.WebP", "08.tiff"];
                 foreach (string name in names) SaveImage(directory, name, 99, name == names[0] ? 2 : 1);
                 window.Show();
                 await window.OpenImageAsync(Path.Combine(directory, names[0]));
@@ -155,7 +167,7 @@ public class FileNavigationTests
                 for (int index = 1; index < names.Length; index++)
                 {
                     if (index % 2 == 1) next.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-                    else Assert.True(RaiseKey(window, Key.N).Handled);
+                    else Assert.True(RaiseKey(window, Key.W).Handled);
                     string expected = names[index];
                     await WaitForAsync(() => window.Title.StartsWith(expected) && previous.IsEnabled);
                     Assert.Equal("1 / 1", PageText(window));
@@ -166,7 +178,7 @@ public class FileNavigationTests
                 for (int index = names.Length - 2; index >= 0; index--)
                 {
                     if (index % 2 == 0) previous.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-                    else Assert.True(RaiseKey(window, Key.B).Handled);
+                    else Assert.True(RaiseKey(window, Key.Q).Handled);
                     string expected = names[index];
                     await WaitForAsync(() => window.Title.StartsWith(expected) && next.IsEnabled);
                     Assert.Equal(index == 0 ? "1 / 2" : "1 / 1", PageText(window));
@@ -439,6 +451,13 @@ public class FileNavigationTests
     private static string SaveImage(string directory, string name, byte value, int pages = 1)
     {
         string path = Path.Combine(directory, name);
+        if (Path.GetExtension(name).Equals(".webp", StringComparison.OrdinalIgnoreCase))
+        {
+            using var gray = VipsImage.Black(80, 60);
+            using var image = gray.NewFromImage([value]);
+            image.Webpsave(path, lossless: true);
+            return path;
+        }
         BitmapEncoder encoder = Path.GetExtension(name).ToLowerInvariant() switch
         {
             ".tif" or ".tiff" => new TiffBitmapEncoder { Compression = TiffCompressOption.Zip },

@@ -29,7 +29,9 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.NextPageButton), "Next page", "Page Down / 2", "Go to the next page in a multipage TIFF."),
                 (nameof(MainWindow.PreviousFileButton), "Previous file", "Q", "Open the previous image in the same folder."),
                 (nameof(MainWindow.NextFileButton), "Next file", "W", "Open the next image in the same folder."),
-                (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window.")
+                (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window."),
+                (nameof(MainWindow.CropSaveDestinationButton), "Save to", "—",
+                    "Open the save location window for crops and comparison images.")
             ]),
             new("Crop",
             [
@@ -38,7 +40,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 ("Save", "Left-click inside the selection to save the crop and copy it to the clipboard. WebP crops are saved as lossless WebP.")
             ],
                 "Press Ctrl+C to copy the selection to the clipboard, or Esc to clear it.",
-                " specifies the destination for crops and comparison images."),
+                " — Click the crop icon to open a window where you can enter a folder path or filename. Select OK to apply the change. Leave the field blank to use the source folder and an automatic filename."),
             new("Mouse controls", "Action",
             [
                 ("Mouse wheel", "Zoom around the pointer."),
@@ -69,7 +71,9 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.NextPageButton), "次のページ", "Page Down / 2", "複数ページのTIFFで次のページに移動します。"),
                 (nameof(MainWindow.PreviousFileButton), "前のファイル", "Q", "同じフォルダー内の前の画像を開きます。"),
                 (nameof(MainWindow.NextFileButton), "次のファイル", "W", "同じフォルダー内の次の画像を開きます。"),
-                (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。")
+                (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。"),
+                (nameof(MainWindow.CropSaveDestinationButton), "保存先（Save to）", "—",
+                    "切り抜きと差分画像の保存先を設定するウィンドウを開きます。")
             ]),
             new("切り抜き（CROP）",
             [
@@ -78,7 +82,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 ("保存する", "選択枠の内側を左クリックすると、切り抜きを保存し、クリップボードにもコピーします。WebPの切り抜きは可逆圧縮のWebPで保存します。")
             ],
                 "Ctrl+C でクリップボードにコピーし、Esc で選択を解除します。",
-                " 欄では、切り抜きや差分画像の保存先を指定できます。"),
+                " のクロップアイコンを押し、開いたウィンドウにフォルダーのパスかファイル名を入力して OK を押します。空欄にすると、元画像と同じフォルダーに自動で付けた名前で保存します。"),
             new("マウス操作", "操作",
             [
                 ("ホイール", "ポインターの位置を中心に拡大・縮小します。"),

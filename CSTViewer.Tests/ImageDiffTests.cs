@@ -71,6 +71,37 @@ public class ImageDiffTests
     }
 
     [Fact]
+    public async Task Webp_ViewsFirstAnimationFrameAndComparesAllFrames()
+    {
+        string directory = CreateDirectory();
+        try
+        {
+            string oldPath = Path.Combine(directory, "old.webp"), newPath = Path.Combine(directory, "new.webp");
+            string output = Path.Combine(directory, "diff.tif");
+            byte[] white = Enumerable.Repeat((byte)255, 12).ToArray();
+            byte[] black = new byte[12];
+            using (var oldImage = Rgb(2, 4, [.. white, .. black]))
+                oldImage.Webpsave(oldPath, lossless: true, pageHeight: 2);
+            using (var newImage = Rgb(2, 4, [.. black, .. white]))
+                newImage.Webpsave(newPath, lossless: true, pageHeight: 2);
+
+            var viewed = await ImageLoader.LoadPageAsync(newPath, 0, new System.Windows.Size(2, 2));
+            Assert.Equal((1, 2, 2), (viewed.PageCount, viewed.SourceWidth, viewed.SourceHeight));
+            var displayed = new byte[12];
+            viewed.Bitmap.CopyPixels(displayed, 6, 0);
+            Assert.Equal(black, displayed);
+
+            await ImageDiff.CreateAsync(oldPath, newPath, output);
+            using var first = VipsImage.Tiffload(output, page: 0);
+            using var second = VipsImage.Tiffload(output, page: 1);
+            Assert.Equal(2, (int)first.Get("n-pages"));
+            Assert.Equal(new byte[] { 255, 0, 0 }, first.WriteToMemory<byte>()[..3]);
+            Assert.Equal(new byte[] { 0, 0, 255 }, second.WriteToMemory<byte>()[..3]);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
     public async Task CreateAsync_IdenticalPageAddsCenteredRedMessage()
     {
         string directory = CreateDirectory();

@@ -12,14 +12,32 @@ public partial class MainWindow
 {
     private readonly ImageCropSelection _cropSelection = new();
     private readonly List<Rectangle> _cropHandles = [];
+    private bool _isEditingCropSaveDestination;
     private bool _isCropBusy;
     private string? _cropStatus;
     private bool CanEditCrop => !_isClosed && !_isLoading && !_isChangingPage && !_isCropBusy && !IsDiffBusy && !IsSaveBusy
         && _currentPage is not null;
 
+    internal string CropSaveDestination { get; set; } = CropSavePath.DefaultText;
+
+    private void CropSaveDestinationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isEditingCropSaveDestination || !CropSaveDestinationButton.IsEnabled) return;
+
+        _isEditingCropSaveDestination = true;
+        try
+        {
+            var dialog = new CropSaveDestinationWindow(this, CropSaveDestination);
+            if (dialog.ShowDialog() == true) CropSaveDestination = dialog.Destination;
+        }
+        finally
+        {
+            _isEditingCropSaveDestination = false;
+        }
+    }
+
     private void InitializeCropOverlay()
     {
-        CropSavePathTextBox.Text = CropSavePath.DefaultText;
         for (int index = 0; index < 8; index++)
         {
             var handle = new Rectangle
@@ -167,7 +185,7 @@ public partial class MainWindow
 
     internal Task<bool> SaveConfiguredCropAsync(Action<DataObject>? writeClipboard = null)
     {
-        string text = CropSavePathTextBox.Text;
+        string text = CropSaveDestination;
         return ExecuteCropAsync(async (session, page, rectangle) =>
         {
             string outputPath = CropSavePath.Resolve(session.Path, text, baseDirectory: App.RelativeSavePathBaseDirectory);
@@ -274,7 +292,7 @@ public partial class MainWindow
 
     private void UpdateCropBusyState()
     {
-        CropSavePathTextBox.IsEnabled = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy;
+        CropSaveDestinationButton.IsEnabled = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy;
         OpenImageButton.IsEnabled = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy;
         ImageViewportCanvas.IsEnabled = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy;
         // 読み込み中は待機カーソルだけにし、表示中の画像を覆って点滅させない。

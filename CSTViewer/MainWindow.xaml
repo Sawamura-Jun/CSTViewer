@@ -37,7 +37,7 @@
                 Background="#383838"
                 SnapsToDevicePixels="True" IsHitTestVisible="False" />
         <!-- コントロールへ文字サイズを直接指定し、Fluentテーマの既定スタイルを維持する。 -->
-        <!-- 同期モードで幅が半分になっても、操作と保存先を折り返して表示する。 -->
+        <!-- 同期モードで幅が半分になっても、操作ボタンを折り返して表示する。 -->
         <WrapPanel x:Name="MainToolbar" Margin="{x:Static local:ViewerSettings.MainToolbarMargin}">
             <Button x:Name="SaveImageButton" AutomationProperties.Name="Save" IsEnabled="False"
                     MinWidth="0"
@@ -215,24 +215,18 @@
                     Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
                     Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
                     Content="H" ToolTip="Help / ヘルプ" Click="HelpButton_Click" />
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Label x:Name="CropSaveDestinationLabel" Content="Save to"
-                       FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                       Target="{Binding ElementName=CropSavePathTextBox}" VerticalAlignment="Center" Padding="0"
-                       Margin="0,0,8,0" />
-                <TextBox x:Name="CropSavePathTextBox"
-                         Width="{x:Static local:ViewerSettings.CropSaveTextMinimumWidth}"
-                         FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                         MinWidth="{x:Static local:ViewerSettings.CropSaveTextMinimumWidth}"
-                         Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
-                         Padding="{x:Static local:ViewerSettings.ToolbarTextBoxPadding}"
-                         AutomationProperties.Name="Save location for crops and diffs">
-                    <TextBox.ToolTip>
-                        <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                                 Content="End a folder path with \. A filename alone saves to the source folder. Leave blank to name crops after the source image with a timestamp, and diffs after the new image with _dif.tif." />
-                    </TextBox.ToolTip>
-                </TextBox>
-            </StackPanel>
+            <Button x:Name="CropSaveDestinationButton" AutomationProperties.Name="Save to"
+                    MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                    FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+                    Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}" MinHeight="0"
+                    Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
+                    Click="CropSaveDestinationButton_Click">
+                <local:ToolbarIcon Glyph="&#xE7A8;" IsHitTestVisible="False" />
+                <Button.ToolTip>
+                    <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
+                             Content="Save to: set the save location for crops and diffs." />
+                </Button.ToolTip>
+            </Button>
         </WrapPanel>
         <Border x:Name="ImageViewportBorder" Grid.Row="1" CornerRadius="8" BorderBrush="#383838" BorderThickness="1"
                 Background="#141414" PreviewMouseDown="ImageViewportBorder_PreviewMouseDown">

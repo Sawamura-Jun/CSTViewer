@@ -18,7 +18,7 @@ public static class ViewerSettings
     // 初期レイアウトと画像寸法取得失敗時のサイズ（DIP）。画像未指定時の仮想画像の縦横比にも使う。
     public const double WindowWidth = 1000; // 1000
     public const double WindowHeight = 708;
-    // 狭い画面ではツールバーと保存先欄を折り返す。同期モードには別の最小幅を使う。
+    // 狭い画面ではツールバーのボタンを折り返す。同期モードには別の最小幅を使う。
     public const double MinimumWindowWidth = 600;  // 600
     public const double MinimumWindowHeight = 400; // 400
     // 起動先モニター全体に対する、枠やツールバーを含むウィンドウ寸法の割合。
@@ -47,14 +47,13 @@ public static class ViewerSettings
     public static readonly Thickness MainToolbarMargin = new(0, -2, 0, 6);
     public static readonly Thickness ToolbarButtonPadding = new(10, 1, 10, 1);
     public static readonly Thickness ToolbarButtonMargin = new(0, 0, 4, 4);
-    public static readonly Thickness ToolbarTextBoxPadding = new(6, 1, 6, 1);
+    public const double CropSaveDestinationWindowWidth = 440;
     public const double CropBorderWidth = 2;
     public const double CropHandleSize = 9;
     public const double CropEdgeGrabWidth = 10;
     public const double CropDragStartDistance = 3;
     public const double CropMinimumViewSize = 2;
     public const int CropJpegQuality = 90;
-    public const double CropSaveTextMinimumWidth = 240;
     public const string CropTimestampFormat = "yyyyMMdd_HHmmss_fff";
     public const int CropPngCompression = 9;
     public const Key PreviousPageShortcutKey = Key.D1;
