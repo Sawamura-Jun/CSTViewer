@@ -11,13 +11,14 @@ internal static class TiffOcr
 {
     public static ProcessStartInfo CreateStartInfo()
     {
-        string? configured = Environment.GetEnvironmentVariable(OcrSearchSettings.TesseractEnvironmentVariable);
-        string directory = string.IsNullOrWhiteSpace(configured) ? OcrSearchSettings.DefaultTesseractDirectory : configured;
+        // 起動時の作業フォルダーに関係なく、CSTViewer.exeと一緒に配布されたファイルを使う。
+        string directory = OcrSearchSettings.BundledTesseractDirectory;
         string executable = Path.Combine(directory, "tesseract.exe");
         string tessdata = Path.Combine(directory, "tessdata");
         if (!File.Exists(executable))
-            throw new FileNotFoundException($"Tesseract was not found. Install it or set {OcrSearchSettings.TesseractEnvironmentVariable} to its folder.\n{executable}");
-        foreach (string model in OcrSearchSettings.Languages.Split('+').Append("osd"))
+            throw new FileNotFoundException($"The bundled OCR engine is missing. Restore the Tesseract-OCR folder from the CSTViewer distribution.\n{executable}");
+        // 縦書きの日本語を検出すると、Tesseractが縦書き用の学習データも読み込む。
+        foreach (string model in OcrSearchSettings.Languages.Split('+').Append(OcrSearchSettings.VerticalJapaneseModel).Append("osd"))
         {
             string modelPath = Path.Combine(tessdata, $"{model}.traineddata");
             if (!File.Exists(modelPath))
@@ -29,6 +30,7 @@ internal static class TiffOcr
 
         var startInfo = new ProcessStartInfo(executable)
         {
+            WorkingDirectory = directory,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = true,
@@ -38,6 +40,7 @@ internal static class TiffOcr
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        startInfo.Environment.Remove("TESSDATA_PREFIX");
         foreach (string argument in new[]
         {
             "stdin", "stdout", "--tessdata-dir", tessdata, "-l", OcrSearchSettings.Languages,

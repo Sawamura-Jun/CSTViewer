@@ -22,7 +22,27 @@
 
   <PropertyGroup>
     <PlatformTarget>x64</PlatformTarget>
+    <TesseractBundleDir Condition="'$(TesseractBundleDir)' == ''">$(MSBuildProjectDirectory)\..\resources\Tesseract-OCR</TesseractBundleDir>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="$(TesseractBundleDir)\**\*" Link="Tesseract-OCR\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <!-- OCRに必要な配布ファイルがそろっていることを発行時に確認する。 -->
+  <Target Name="ValidateTesseractBundle" BeforeTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <RequiredTesseractFile Include="$(TesseractBundleDir)\tesseract.exe;$(TesseractBundleDir)\libleptonica-6.dll" />
+      <TesseractEngineDll Include="$(TesseractBundleDir)\libtesseract-5*.dll" />
+      <RequiredTesseractFile Include="$(TesseractBundleDir)\tessdata\eng.traineddata;$(TesseractBundleDir)\tessdata\jpn.traineddata;$(TesseractBundleDir)\tessdata\jpn_vert.traineddata;$(TesseractBundleDir)\tessdata\osd.traineddata;$(TesseractBundleDir)\tessdata\configs\tsv" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(RequiredTesseractFile.Identity)')"
+           Text="The Tesseract bundle is incomplete. Missing: %(RequiredTesseractFile.Identity)" />
+    <Error Condition="'@(TesseractEngineDll)' == ''"
+           Text="The Tesseract bundle is incomplete. No Tesseract 5 engine DLL was found in $(TesseractBundleDir)." />
+  </Target>
 
   <ItemGroup>
     <!-- 通知領域だけにWindows Formsを使い、WPFと同名の型の自動usingは追加しない。 -->

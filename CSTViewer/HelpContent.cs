@@ -32,7 +32,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.SearchButton), "Search TIFF text", "Enter in search box",
                     "Type a query and search all pages of the open TIFF. Shaded red areas mark matches on the current page. Use the page controls to view other pages. The status bar shows progress during the search."),
                 (nameof(MainWindow.OcrButton), "OCR results", "—",
-                    "Open the recognized text from every TIFF page in a separate window. The status bar shows progress. Search and OCR require Tesseract with English, Japanese, and orientation data."),
+                    "Open the recognized text from every TIFF page in a separate window. The status bar shows progress. Search and OCR use the Tesseract engine bundled with CSTViewer."),
                 (nameof(MainWindow.CropSaveDestinationButton), "Save to", "—",
                     "Open the save location window for crops and comparison images."),
                 (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window.")
@@ -78,7 +78,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.SearchButton), "TIFFの文字検索", "検索欄で Enter",
                     "検索語を入力し、開いているTIFFの全ページを検索します。表示中のページの一致箇所を半透明の赤で塗りつぶします。他のページはページ移動ボタンで確認できます。検索中はステータスバーに進捗を表示します。"),
                 (nameof(MainWindow.OcrButton), "OCR結果", "—",
-                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。処理中はステータスバーに進捗を表示します。検索とOCRにはTesseract本体と英語・日本語・向き検出用のデータが必要です。"),
+                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。処理中はステータスバーに進捗を表示します。検索とOCRにはCSTViewerに同梱のTesseractを使います。"),
                 (nameof(MainWindow.CropSaveDestinationButton), "保存先（Save to）", "—",
                     "切り抜きと差分画像の保存先を設定するウィンドウを開きます。"),
                 (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。")

@@ -42,7 +42,9 @@ CSTViewer is a fast image viewer for Windows 11, built with C# and .NET 10 (WPF)
 
 Requires Windows 11 (x64) and the .NET 10 SDK. TIFF and WebP support use the bundled NetVips/libvips libraries; no Python installation is required.
 
-TIFF text search uses an external Tesseract 5 installation. Install it in `%ProgramFiles%\Tesseract-OCR` or set `CSTVIEWER_TESSERACT_DIR` to the folder that contains `tesseract.exe`. The installation needs its DLLs, `tessdata\eng.traineddata`, `tessdata\jpn.traineddata`, `tessdata\osd.traineddata`, and `tessdata\configs\tsv`.
+The published app includes Tesseract for TIFF search and OCR. Keep the `Tesseract-OCR` folder next to `CSTViewer.exe`.
+
+To publish from a source checkout, place the Windows x64 Tesseract 5 bundle in `resources\Tesseract-OCR` or specify its directory with `-p:TesseractBundleDir=...`. Include `tesseract.exe`, its DLLs, `tessdata\eng.traineddata`, `tessdata\jpn.traineddata`, `tessdata\jpn_vert.traineddata`, `tessdata\osd.traineddata`, `tessdata\configs\tsv`, and the accompanying license notices. The `FolderProfile` publish profile copies this bundle to `Release\bin\Tesseract-OCR`.
 
 ```powershell
 dotnet run --project .\CSTViewer\CSTViewer.csproj
