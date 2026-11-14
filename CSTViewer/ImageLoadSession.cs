@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
 
@@ -11,6 +12,16 @@ internal sealed class ImageLoadSession
     private static readonly ImageDecodeQueue DecodeQueue = new(DecodeGate);
     private readonly CancellationTokenSource _cancellation = new();
     private bool _cancelled;
+    private readonly record struct OcrFileStamp(long Length, DateTime LastWriteTimeUtc, DateTime CreationTimeUtc)
+    {
+        public static OcrFileStamp Read(string path)
+        {
+            var file = new FileInfo(path);
+            return new(file.Length, file.LastWriteTimeUtc, file.CreationTimeUtc);
+        }
+    }
+    private (OcrFileStamp Stamp, OcrSearchPage[] Pages)? _ocrCache;
+
     private sealed class FullPageWork(CancellationToken token, ImageDetailRequest request)
     {
         public ImageDetailRequest Request { get; } = request;
@@ -50,6 +61,25 @@ internal sealed class ImageLoadSession
         Token = _cancellation.Token;
     }
 
+    // 検索とOCR表示は同じ認識結果を使う。ファイル情報の読み取りはUIスレッドの外で行う。
+    public async Task<OcrSearchPage[]> GetOcrPagesAsync(CancellationToken token, IProgress<int> preparedPages,
+        Action onCacheMiss)
+    {
+        OcrFileStamp stamp = await Task.Run(() => OcrFileStamp.Read(Path), token);
+        token.ThrowIfCancellationRequested();
+        if (_ocrCache is { } cached && cached.Stamp == stamp) return cached.Pages;
+
+        _ocrCache = null;
+        onCacheMiss();
+        OcrSearchPage[] pages = await TiffSearch.RecognizePagesAsync(Path, PageCount, token, preparedPages);
+        OcrFileStamp currentStamp = await Task.Run(() => OcrFileStamp.Read(Path), token);
+        token.ThrowIfCancellationRequested();
+        if (currentStamp != stamp) throw new IOException("The TIFF changed during OCR. Try again.");
+
+        _ocrCache = (stamp, pages);
+        return pages;
+    }
+
     public async Task<ImagePage> LoadPageAsync(int index, Size size, ImageLoadMeasurement? measurement, bool isPreload = false)
     {
         measurement?.StartStage("DecodeQueue");
@@ -68,6 +98,7 @@ internal sealed class ImageLoadSession
     {
         if (_cancelled) return;
         _cancelled = true;
+        _ocrCache = null;
         // 実行中のネイティブ処理は完了を待ち、その結果と残りページを破棄する。
         _cancellation.Cancel();
         _cancellation.Dispose();

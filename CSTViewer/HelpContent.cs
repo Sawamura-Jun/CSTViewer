@@ -30,9 +30,9 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.PreviousFileButton), "Previous file", "Q", "Open the previous image in the same folder."),
                 (nameof(MainWindow.NextFileButton), "Next file", "W", "Open the next image in the same folder."),
                 (nameof(MainWindow.SearchButton), "Search TIFF text", "Enter in search box",
-                    "Type a query and search all pages of the open TIFF. Shaded red areas mark matches on the current page. Use the page controls to view other pages. The status bar shows progress during the search."),
+                    "Type a query and search all pages of the open TIFF. Shaded red areas mark matches on the current page. Use the page controls to view other pages. The status bar shows progress while recognizing text. Searches reuse the recognized text while the TIFF stays open and unchanged."),
                 (nameof(MainWindow.OcrButton), "OCR results", "—",
-                    "Open the recognized text from every TIFF page in a separate window. The status bar shows progress. Search and OCR use the Tesseract engine bundled with CSTViewer."),
+                    "Open the recognized text from every TIFF page in a separate window. Search and the OCR window share the recognition results from the Tesseract engine bundled with CSTViewer."),
                 (nameof(MainWindow.CropSaveDestinationButton), "Save to", "—",
                     "Open the save location window for crops and comparison images."),
                 (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window.")
@@ -76,9 +76,9 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.PreviousFileButton), "前のファイル", "Q", "同じフォルダー内の前の画像を開きます。"),
                 (nameof(MainWindow.NextFileButton), "次のファイル", "W", "同じフォルダー内の次の画像を開きます。"),
                 (nameof(MainWindow.SearchButton), "TIFFの文字検索", "検索欄で Enter",
-                    "検索語を入力し、開いているTIFFの全ページを検索します。表示中のページの一致箇所を半透明の赤で塗りつぶします。他のページはページ移動ボタンで確認できます。検索中はステータスバーに進捗を表示します。"),
+                    "検索語を入力し、開いているTIFFの全ページを検索します。表示中のページの一致箇所を半透明の赤で塗りつぶします。他のページはページ移動ボタンで確認できます。文字認識中はステータスバーに進捗を表示します。同じTIFFを開いていてファイルに変更がない間は、認識結果を再利用します。"),
                 (nameof(MainWindow.OcrButton), "OCR結果", "—",
-                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。処理中はステータスバーに進捗を表示します。検索とOCRにはCSTViewerに同梱のTesseractを使います。"),
+                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。検索とOCRウィンドウは、CSTViewerに同梱のTesseractで得た認識結果を共有します。"),
                 (nameof(MainWindow.CropSaveDestinationButton), "保存先（Save to）", "—",
                     "切り抜きと差分画像の保存先を設定するウィンドウを開きます。"),
                 (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。")

@@ -68,11 +68,7 @@ public partial class MainWindow
             UpdateSearchHighlights();
         }
         string operation = query is null ? "OCR" : "Search";
-        _ocrProgressStatus = query is null ? "Running OCR…" : "Searching TIFF text…";
-        OcrProgressBar.Maximum = session.PageCount;
-        OcrProgressBar.Value = 0;
-        OcrProgressBar.IsIndeterminate = true;
-        OcrProgressBar.Visibility = Visibility.Visible;
+        _ocrProgressStatus = query is null ? "Opening OCR results…" : "Searching TIFF text…";
         UpdateSearchControls();
         UpdateStatusText();
         ImageViewportCanvas.Focus();
@@ -89,18 +85,31 @@ public partial class MainWindow
         });
         try
         {
+            OcrSearchPage[] pages = await session.GetOcrPagesAsync(cancellation.Token, preparedPages, () =>
+            {
+                if (query is null)
+                {
+                    _searchMatches = null;
+                    _searchStatus = null;
+                    UpdateSearchHighlights();
+                    _ocrProgressStatus = "Running OCR…";
+                }
+                OcrProgressBar.Maximum = session.PageCount;
+                OcrProgressBar.Value = 0;
+                OcrProgressBar.IsIndeterminate = true;
+                OcrProgressBar.Visibility = Visibility.Visible;
+                UpdateStatusText();
+            });
+            if (!IsCurrentOcr(session, cancellation)) return;
             if (query is null)
             {
-                OcrSearchPage[] pages = await TiffSearch.RecognizePagesAsync(session.Path, session.PageCount,
-                    cancellation.Token, preparedPages);
-                if (!IsCurrentOcr(session, cancellation)) return;
                 new OcrResultWindow(this, session.Path, pages).Show();
                 _ocrStatus = $"OCR complete · Pages: {pages.Length:N0}";
             }
             else
             {
-                Rect[][] matches = await TiffSearch.FindMatchesAsync(session.Path, session.PageCount, query,
-                    cancellation.Token, preparedPages);
+                Rect[][] matches = await Task.Run(() => OcrTextSearch.FindMatches(pages, query, cancellation.Token),
+                    cancellation.Token);
                 if (!IsCurrentOcr(session, cancellation)) return;
                 _searchMatches = matches;
                 _searchStatus = $"Matches: {matches.Sum(page => page.Length):N0} · Pages with matches: {matches.Count(page => page.Length != 0):N0}";
