@@ -14,7 +14,7 @@ public partial class MainWindow : Window
     // TIFFの画像状態の名称:
     // ① プレビュー画像: ページ全体を画面サイズを目安に縮小し、初期表示・ページ切り替え・ズーム中に使う。
     // ② 表示用高精細画像（Loading image details…）: 表示倍率の1.8倍で生成・保存する（元解像度が上限）。
-    // ②は表示領域＋各辺50%を先行し、その後同じ必要解像度でページ全体を生成して置き換える。
+    // ②は表示領域を先に描画し、各辺50%のパン用余白、ページ全体の順に同じ解像度で補う。
     // Fit時は先行領域が既にページ全体のため、その②を保存して二重生成を省く。
     private readonly ImageViewport _viewport = new();
     private readonly string _performanceLogPath;
@@ -255,7 +255,8 @@ public partial class MainWindow : Window
             {
                 UpdatePageControls();
                 // 先読み完了で、実行中または予約済みの高精細化を中止・延期しない。
-                if (!_isDetailLoading && _detailLoadTimer?.IsEnabled != true) ScheduleDetailLoad();
+                if (!_isDetailLoading && _detailMarginCancellation is null && _detailLoadTimer?.IsEnabled != true)
+                    ScheduleDetailLoad();
             }
         }
     }
@@ -334,7 +335,8 @@ public partial class MainWindow : Window
         PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? _ocrProgressStatus
             ?? _ocrStatus ?? _searchStatus
             ?? (_session is null ? "Open an image file" : _session.Error
-            ?? (_isDetailLoading || _currentPage is { } page && _session.IsFullPageLoading(page.Index)
+            ?? (_isDetailLoading || _detailMarginCancellation is { IsCancellationRequested: false }
+                || _currentPage is { } page && _session.IsFullPageLoading(page.Index)
                 ? (ImageLoader.IsTiff(_session.Path) ? "Loading image details…" : "Adjusting image display…")
                 : _session.IsPreloading ? $"Preloading pages: {_session.LoadedPages} / {_session.PageCount}"
                 : $"Page previews loaded: {_session.LoadedPages}"));
@@ -540,9 +542,7 @@ public partial class MainWindow : Window
         _detailAfterPanRequested = false;
         if (ImageLoader.IsTiff(session.Path))
         {
-            // ②の領域画像を先に確保し、必要なら同じ解像度のページ全体版をバックグラウンド生成する。
-            await LoadVisibleDetailsAsync(session, page);
-            StartFullPageDetails(session, page);
+            await LoadTiffDetailsAsync(session, page);
             return;
         }
         double displayScale = GetDisplayScale();

@@ -101,7 +101,7 @@ public static class ViewerSettings
     public const int DetailLoadDelayMilliseconds = ZoomInteractionIdleMilliseconds + DetailAfterZoomIdleDelayMilliseconds;
     public const double DetailOversamplingFactor = 1.8;
     public const double DetailRegionResizeGap = 1.0;
-    // ②は各辺50%の余白を先に読み込み、その後同じ表示倍率向けの解像度でページ全体を生成する。
+    // 表示領域を先に描画した後、各辺に50%のパン用余白を加える。
     public const double DetailRegionMarginRatio = 0.5;
     // 0はページ数の制限なし。開いているファイルで生成した②を全ページ分保持する。
     public const int DetailCachePageLimit = 0;

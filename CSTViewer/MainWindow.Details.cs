@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace CSTViewer;
 
@@ -8,6 +9,7 @@ public partial class MainWindow
     // 表示中の② 表示用高精細画像。先行する領域画像と、その後に完成するページ全体画像で共用する。
     private ImageDetailRegion? _currentDetailRegion;
     private CancellationTokenSource? _detailRegionCancellation;
+    private CancellationTokenSource? _detailMarginCancellation;
     private bool _isDetailDecoding;
     private bool _detailAfterPanRequested;
 
@@ -90,8 +92,69 @@ public partial class MainWindow
         }
     }
 
+    private async Task LoadTiffDetailsAsync(ImageLoadSession session, ImagePage page)
+    {
+        long revision = _viewRevision;
+        await LoadVisibleDetailsAsync(session, page);
+        // 画面内の画像を描画する機会を設けてから、余白のデコードを予約する。
+        await Dispatcher.Yield(DispatcherPriority.Background);
+        if (revision != _viewRevision || !CanApplyFullDetail(session, page)
+            || _detailMarginCancellation is { IsCancellationRequested: false }) return;
+
+        await LoadDetailMarginAsync(session, page);
+        if (revision == _viewRevision) StartFullPageDetails(session, page);
+    }
+
+    private async Task LoadDetailMarginAsync(ImageLoadSession session, ImagePage page)
+    {
+        if (!CanApplyFullDetail(session, page) || _isChangingPage || _isCropBusy || IsDiffBusy || IsSaveBusy
+            || _detailMarginCancellation is { IsCancellationRequested: false } || session.IsFullPageLoading(page.Index)) return;
+
+        double displayScale = GetDisplayScale();
+        if (_currentDetailRegion is not { } current
+            || !current.Covers(page.Index, _viewport.VisibleSourceBounds, displayScale)) return;
+
+        var request = ImageDetailRequest.Create(_viewport, displayScale, includeMargin: true);
+        var bounds = new Rect(request.Rectangle.X, request.Rectangle.Y, request.Rectangle.Width, request.Rectangle.Height);
+        if (current.Covers(page.Index, bounds, displayScale) || session.Details.Get(page.Index, bounds, displayScale) is not null) return;
+
+        long revision = _viewRevision;
+        using var cancellation = new CancellationTokenSource();
+        _detailMarginCancellation = cancellation;
+        UpdateStatusText();
+        var measurement = CreateMeasurement(session, "PageDetailMargin");
+        try
+        {
+            var region = await session.LoadDetailRegionAsync(page.Index, request, measurement, cancellation.Token,
+                priority: ImageDecodePriority.DetailMargin);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (revision == _viewRevision && CanApplyFullDetail(session, page) && !_isChangingPage
+                && !_isCropBusy && !IsDiffBusy && !IsSaveBusy)
+            {
+                session.Details.Add(region);
+                measurement?.StartStage("UiApply");
+                UpdateDetailRegionViewport();
+            }
+            WriteMeasurement(measurement, "Completed");
+        }
+        catch (OperationCanceledException)
+        {
+            WriteMeasurement(measurement, "Cancelled");
+        }
+        catch (Exception exception) when (IsImageLoadException(exception))
+        {
+            WriteMeasurement(measurement, "Failed", exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(_detailMarginCancellation, cancellation)) _detailMarginCancellation = null;
+            if (!_isClosed) UpdateStatusText();
+        }
+    }
+
     private void CancelPendingDetailRegion(bool preserveRunningDetail = false)
     {
+        _detailMarginCancellation?.Cancel();
         _session?.CancelQueuedFullPages();
         // パンでは開始済みの1件だけを完走させ、順番待ちの要求は取り消す。
         if (!preserveRunningDetail || !_isDetailDecoding) _detailRegionCancellation?.Cancel();

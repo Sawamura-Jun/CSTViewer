@@ -3,19 +3,25 @@ namespace CSTViewer.Tests;
 public class ImageDecodeQueueTests
 {
     [Fact]
-    public async Task Priority_VisibleRegionThenPreviewThenFullPage()
+    public async Task Priority_VisibleRegionThenPreviewThenMarginThenFullPage()
     {
         using var gate = new SemaphoreSlim(0, 1);
         var queue = new ImageDecodeQueue(gate);
         Task full = queue.WaitAsync(CancellationToken.None, ImageDecodePriority.FullPage);
+        Task margin = queue.WaitAsync(CancellationToken.None, ImageDecodePriority.DetailMargin);
         Task preview = queue.WaitAsync(CancellationToken.None, ImageDecodePriority.Preview);
         Task visible = queue.WaitAsync(CancellationToken.None, ImageDecodePriority.Visible);
         gate.Release();
         await visible.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(full.IsCompleted);
+        Assert.False(margin.IsCompleted);
         Assert.False(preview.IsCompleted);
         queue.Release();
         await preview.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(margin.IsCompleted);
+        Assert.False(full.IsCompleted);
+        queue.Release();
+        await margin.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(full.IsCompleted);
         queue.Release();
         await full.WaitAsync(TimeSpan.FromSeconds(5));

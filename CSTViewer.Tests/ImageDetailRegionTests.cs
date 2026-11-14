@@ -64,7 +64,7 @@ public class ImageDetailRegionTests
 
     private static ImageDetailRequest AssertRequest(ImageViewport viewport)
     {
-        var request = ImageDetailRequest.Create(viewport, viewport.Scale);
+        var request = ImageDetailRequest.Create(viewport, viewport.Scale, includeMargin: true);
         Rect bounds = new(request.Rectangle.X, request.Rectangle.Y, request.Rectangle.Width, request.Rectangle.Height);
         Assert.True(bounds.Contains(viewport.VisibleSourceBounds));
         Assert.True(viewport.ImageBounds.Contains(bounds));

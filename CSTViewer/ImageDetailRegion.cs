@@ -15,14 +15,17 @@ internal readonly record struct ImageDetailRequest(Int32Rect Rectangle, double D
     }
 
     /// <summary>② 表示用高精細画像の範囲と、各方向1.8倍の解像度（元解像度が上限）を求める。</summary>
-    public static ImageDetailRequest Create(ImageViewport viewport, double displayScale)
+    public static ImageDetailRequest Create(ImageViewport viewport, double displayScale, bool includeMargin = false)
     {
         Rect visible = viewport.VisibleSourceBounds;
         if (visible.IsEmpty || visible.Width <= 0 || visible.Height <= 0) return default;
-        // 表示領域の各辺に50%の余白を加える。Fit時はページ全体となり、画像外の余白は切り詰める。
-        visible.Inflate(visible.Width * ViewerSettings.DetailRegionMarginRatio,
-            visible.Height * ViewerSettings.DetailRegionMarginRatio);
-        visible.Intersect(viewport.ImageBounds);
+        if (includeMargin)
+        {
+            // 後から各辺に50%の余白を加える。画像外の余白は切り詰める。
+            visible.Inflate(visible.Width * ViewerSettings.DetailRegionMarginRatio,
+                visible.Height * ViewerSettings.DetailRegionMarginRatio);
+            visible.Intersect(viewport.ImageBounds);
+        }
         // 外側へ丸めて、画面の端に必要な画素を取りこぼさない。
         int left = (int)Math.Floor(visible.Left), top = (int)Math.Floor(visible.Top);
         int right = (int)Math.Ceiling(visible.Right), bottom = (int)Math.Ceiling(visible.Bottom);

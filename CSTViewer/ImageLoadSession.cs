@@ -106,12 +106,12 @@ internal sealed class ImageLoadSession
 
     public async Task<ImageDetailRegion> LoadDetailRegionAsync(int index, ImageDetailRequest request,
         ImageLoadMeasurement? measurement, CancellationToken cancellationToken, bool useRegion = true,
-        Action? onDecodeStarted = null)
+        Action? onDecodeStarted = null, ImageDecodePriority priority = ImageDecodePriority.Visible)
     {
         // 表示の変更とファイルの切り替えの、どちらでも待機中の要求を中止できるようにする。
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token, cancellationToken);
         measurement?.StartStage("DecodeQueue");
-        await DecodeQueue.WaitAsync(cancellation.Token);
+        await DecodeQueue.WaitAsync(cancellation.Token, priority);
         try
         {
             cancellation.Token.ThrowIfCancellationRequested();

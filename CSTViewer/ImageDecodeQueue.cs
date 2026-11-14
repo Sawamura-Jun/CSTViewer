@@ -1,8 +1,8 @@
 namespace CSTViewer;
 
-internal enum ImageDecodePriority { Visible, Preview, FullPage }
+internal enum ImageDecodePriority { Visible, Preview, DetailMargin, FullPage }
 
-/// <summary>表示領域、他ページのプレビュー、ページ全体の順にデコード枠を割り当てる。</summary>
+/// <summary>表示領域、他ページのプレビュー、周辺の余白、ページ全体の順にデコード枠を割り当てる。</summary>
 internal sealed class ImageDecodeQueue(SemaphoreSlim gate)
 {
     private sealed class Waiter(CancellationToken token)
@@ -14,8 +14,9 @@ internal sealed class ImageDecodeQueue(SemaphoreSlim gate)
 
     private readonly object _sync = new();
     private readonly LinkedList<Waiter> _foreground = new();
-    private readonly LinkedList<Waiter> _fullPages = new();
     private readonly LinkedList<Waiter> _preloads = new();
+    private readonly LinkedList<Waiter> _detailMargins = new();
+    private readonly LinkedList<Waiter> _fullPages = new();
     private bool _dispatching;
 
     public Task WaitAsync(CancellationToken token, bool isPreload = false) =>
@@ -31,6 +32,7 @@ internal sealed class ImageDecodeQueue(SemaphoreSlim gate)
             var queue = priority switch
             {
                 ImageDecodePriority.Visible => _foreground,
+                ImageDecodePriority.DetailMargin => _detailMargins,
                 ImageDecodePriority.FullPage => _fullPages,
                 _ => _preloads
             };
@@ -65,7 +67,7 @@ internal sealed class ImageDecodeQueue(SemaphoreSlim gate)
         {
             lock (_sync)
             {
-                if (_foreground.Count == 0 && _fullPages.Count == 0 && _preloads.Count == 0)
+                if (_foreground.Count == 0 && _preloads.Count == 0 && _detailMargins.Count == 0 && _fullPages.Count == 0)
                 {
                     _dispatching = false;
                     return;
@@ -78,7 +80,9 @@ internal sealed class ImageDecodeQueue(SemaphoreSlim gate)
             Waiter? next = null;
             lock (_sync)
             {
-                var queue = _foreground.Count > 0 ? _foreground : _preloads.Count > 0 ? _preloads : _fullPages;
+                var queue = _foreground.Count > 0 ? _foreground
+                    : _preloads.Count > 0 ? _preloads
+                    : _detailMargins.Count > 0 ? _detailMargins : _fullPages;
                 if (queue.First is { } node)
                 {
                     queue.RemoveFirst();

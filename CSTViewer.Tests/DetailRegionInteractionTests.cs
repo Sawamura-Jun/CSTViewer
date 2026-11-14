@@ -306,7 +306,7 @@ public class DetailRegionInteractionTests
     });
 
     [Fact]
-    public Task VisibleRegionWithFiftyPercentMargin_PrecedesFullPageAtSameResolution() => RunOnStaAsync(async () =>
+    public Task VisibleRegion_PrecedesPanningMarginAndFullPageAtSameResolution() => RunOnStaAsync(async () =>
     {
         string path = TemporaryPath();
         var window = CreateWindow();
@@ -320,22 +320,34 @@ public class DetailRegionInteractionTests
             session = Session(window);
             await StartZoomDetailLoad(window, zoomSteps: 4);
             var first = CurrentRegion(window)!;
-            var fullRequest = ImageDetailRequest.CreateFullImage(Viewport(window), DisplayScale(window));
-            Rect expected = Viewport(window).VisibleSourceBounds;
-            expected.Inflate(expected.Width * 0.5, expected.Height * 0.5);
-            expected.Intersect(Viewport(window).ImageBounds);
-            Assert.Equal(new Int32Rect((int)Math.Floor(expected.Left), (int)Math.Floor(expected.Top),
-                (int)Math.Ceiling(expected.Right) - (int)Math.Floor(expected.Left),
-                (int)Math.Ceiling(expected.Bottom) - (int)Math.Floor(expected.Top)), first.Rectangle);
-            Assert.NotEqual(new Int32Rect(0, 0, 4096, 3072), first.Rectangle);
+            var viewport = Viewport(window);
+            double scale = DisplayScale(window);
+            var fullRequest = ImageDetailRequest.CreateFullImage(viewport, scale);
+            var marginRequest = ImageDetailRequest.Create(viewport, scale, includeMargin: true);
+            Assert.Equal(ImageDetailRequest.Create(viewport, scale).Rectangle, first.Rectangle);
+            Assert.NotEqual(marginRequest.Rectangle, first.Rectangle);
             Assert.Equal(PixelFormats.Gray8, first.Bitmap.Format);
             Matrix before = ((MatrixTransform)((Image)window.FindName("DisplayedImage")).RenderTransform).Matrix;
-            // 全体読み込みを待機させても、表示領域は先に高精細化される。
+            // 余白が順番待ちの間にも、画面内の高精細画像が表示される。
+            await gate.WaitAsync();
+            held = true;
+            Task marginLoad = (Task)Method(window, "LoadDetailMarginAsync", session, Page(window))!;
+            Assert.False(marginLoad.IsCompleted);
+            Assert.Same(first, CurrentRegion(window));
+            Assert.Equal(Visibility.Visible, ((Image)window.FindName("DetailRegionImage")).Visibility);
+            Assert.False(session.IsFullPageLoading(0));
+            gate.Release();
+            held = false;
+            await marginLoad.WaitAsync(TimeSpan.FromSeconds(8));
+            var withMargin = CurrentRegion(window)!;
+            Assert.Equal(marginRequest.Rectangle, withMargin.Rectangle);
+            Assert.True(withMargin.Covers(0, viewport.VisibleSourceBounds, scale));
+            // 全体読み込みを待機させても、余白まで高精細化した画像を使用できる。
             await gate.WaitAsync();
             held = true;
             StartFullPageDetails(window);
             Assert.True(session.IsFullPageLoading(0));
-            Assert.Same(first, CurrentRegion(window));
+            Assert.Same(withMargin, CurrentRegion(window));
             Assert.Equal("Loading image details…", ((TextBlock)window.FindName("PreloadStatusText")).Text);
             gate.Release();
             held = false;
@@ -357,6 +369,50 @@ public class DetailRegionInteractionTests
             Assert.Same(whole, CurrentRegion(window));
             Assert.False(IsDetailLoading(window));
             Assert.False(session.IsFullPageLoading(0));
+        }
+        finally
+        {
+            if (held) gate.Release();
+            await CloseAsync(window, session);
+            File.Delete(path);
+        }
+    });
+
+    [Fact]
+    public Task Pan_CancelsQueuedMarginAndRefinesNewVisibleRegion() => RunOnStaAsync(async () =>
+    {
+        string path = TemporaryPath();
+        var window = CreateWindow();
+        var gate = DecodeGate();
+        bool held = false;
+        ImageLoadSession? session = null;
+        try
+        {
+            SaveLargeImage(path);
+            await OpenWithoutAutomaticDetails(window, path);
+            session = Session(window);
+            await StartZoomDetailLoad(window, zoomSteps: 4);
+            var first = CurrentRegion(window)!;
+            await gate.WaitAsync();
+            held = true;
+            Task marginLoad = (Task)Method(window, "LoadDetailMarginAsync", session, Page(window))!;
+            var token = Field<CancellationTokenSource>(window, "_detailMarginCancellation").Token;
+
+            var canvas = Canvas(window);
+            BeginPan(canvas);
+            window.PanImage(new Vector(-80, 0));
+            Assert.True(token.IsCancellationRequested);
+            await marginLoad.WaitAsync(TimeSpan.FromSeconds(8));
+            Assert.Same(first, CurrentRegion(window));
+            var viewport = Viewport(window);
+            Assert.False(first.ContainsView(0, viewport.VisibleSourceBounds));
+
+            canvas.ReleaseMouseCapture();
+            await WaitForAsync(() => IsDetailLoading(window));
+            gate.Release();
+            held = false;
+            await WaitForAsync(() => CurrentRegion(window)?.Covers(0, viewport.VisibleSourceBounds, DisplayScale(window)) == true);
+            Assert.NotSame(first, CurrentRegion(window));
         }
         finally
         {
@@ -441,11 +497,12 @@ public class DetailRegionInteractionTests
             BeginPan(Canvas(window));
             window.PanImage(new Vector(-20, -10));
             Assert.False(token.IsCancellationRequested);
+            // 画面内だけの結果を再利用できる位置へ戻してから読み込みを完了させる。
+            window.PanImage(new Vector(20, 10));
             await loading;
             var cached = session.Details.Get(0, Viewport(window).VisibleSourceBounds, DisplayScale(window));
             Assert.NotNull(cached);
             Assert.Same(before, CurrentRegion(window));
-            window.PanImage(new Vector(-5, 0));
             await Task.Delay(ViewerSettings.DetailLoadDelayMilliseconds + 50);
             Assert.Same(before, CurrentRegion(window));
             Assert.False(IsDetailLoading(window));
@@ -459,7 +516,8 @@ public class DetailRegionInteractionTests
             Assert.Same(cached, CurrentRegion(window));
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.False(IsDetailLoading(window));
-            Assert.True(session.IsFullPageLoading(0));
+            Assert.NotNull(Field<CancellationTokenSource?>(window, "_detailMarginCancellation"));
+            Assert.False(session.IsFullPageLoading(0));
         }
         finally
         {
@@ -606,7 +664,8 @@ public class DetailRegionInteractionTests
     private static async Task CloseAsync(MainWindow window, ImageLoadSession? session)
     {
         window.Close();
-        await WaitForAsync(() => !IsDetailLoading(window) && (session is null || !session.IsFullPageLoading(0) && !session.IsFullPageLoading(1)));
+        await WaitForAsync(() => !IsDetailLoading(window) && Field<CancellationTokenSource?>(window, "_detailMarginCancellation") is null
+            && (session is null || !session.IsFullPageLoading(0) && !session.IsFullPageLoading(1)));
     }
     private static MainWindow CreateWindow() => new()
     {
