@@ -44,6 +44,20 @@ public class OcrSearchTests
     }
 
     [Fact]
+    public void OcrResults_KeepPageHeadingsEmptyPagesAndOriginalText()
+    {
+        OcrSearchPage[] pages =
+        [
+            new([[new("BRACKET", Rect.Empty), new("MOTOR", Rect.Empty)],
+                [new("設計", Rect.Empty), new("図", Rect.Empty), new("５９．２８", Rect.Empty)]], new Size(200, 100)),
+            new([[]], new Size(100, 80))
+        ];
+
+        Assert.Equal(string.Join(Environment.NewLine, "Page 1 / 2", "BRACKET MOTOR", "設計図５９．２８", "",
+            "Page 2 / 2", "No text recognized", ""), OcrResultWindow.FormatPages(pages));
+    }
+
+    [Fact]
     public async Task Preprocessing_MatchesDisplayedPixelsForAllTiffOrientations()
     {
         DirectoryInfo directory = Directory.CreateTempSubdirectory("CSTViewer-search-test-");

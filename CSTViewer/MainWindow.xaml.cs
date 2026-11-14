@@ -176,7 +176,7 @@ public partial class MainWindow : Window
         measurement?.StartStage("UiPreparation");
         StopPanning();
         CancelCropDrag();
-        ResetTiffSearch();
+        ResetTiffOcr();
         SetLoadingState(true);
         try
         {
@@ -331,7 +331,8 @@ public partial class MainWindow : Window
     private void UpdateStatusText()
     {
         // 保存結果とエラーは既存の下部ステータス欄へ表示し、ツールバーの行数を増やさない。
-        PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? _searchStatus
+        PreloadStatusText.Text = _saveStatus ?? _diffStatus ?? _cropStatus ?? _spreadStatus ?? _ocrProgressStatus
+            ?? _ocrStatus ?? _searchStatus
             ?? (_session is null ? "Open an image file" : _session.Error
             ?? (_isDetailLoading || _currentPage is { } page && _session.IsFullPageLoading(page.Index)
                 ? (ImageLoader.IsTiff(_session.Path) ? "Loading image details…" : "Adjusting image display…")
@@ -1051,7 +1052,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _isClosed = true;
-        ResetTiffSearch();
+        ResetTiffOcr();
         CancelPendingDetailRegion();
         RemoveSpreadWindowHook();
         _saveCancellation?.Cancel();

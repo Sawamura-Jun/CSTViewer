@@ -1,0 +1,17 @@
+<Window x:Class="CSTViewer.OcrResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CSTViewer"
+        Width="{x:Static local:OcrSearchSettings.ResultWindowWidth}"
+        Height="{x:Static local:OcrSearchSettings.ResultWindowHeight}"
+        MinWidth="{x:Static local:OcrSearchSettings.ResultWindowMinimumWidth}"
+        MinHeight="{x:Static local:OcrSearchSettings.ResultWindowMinimumHeight}"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResizeWithGrip"
+        Background="#202020" Foreground="#E6E6E6" FontFamily="Segoe UI, Yu Gothic UI">
+    <Grid Margin="12">
+        <TextBox x:Name="OcrResultTextBox" AutomationProperties.Name="OCR results by page"
+                 Padding="10" FontSize="{x:Static local:OcrSearchSettings.ResultTextFontSize}"
+                 IsReadOnly="True" TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" />
+    </Grid>
+</Window>

@@ -228,6 +228,16 @@
                         Click="SearchButton_Click">
                     <local:ToolbarIcon Glyph="&#xE721;" IsHitTestVisible="False" />
                 </Button>
+                <Button x:Name="OcrButton" AutomationProperties.Name="Show TIFF OCR results" IsEnabled="False"
+                        MinWidth="0" MinHeight="0"
+                        Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
+                        Height="{x:Static local:ViewerSettings.ToolbarButtonHeight}"
+                        Padding="{x:Static local:ViewerSettings.ToolbarButtonPadding}"
+                        ToolTipService.ShowOnDisabled="True"
+                        ToolTip="OCR: show recognized text from all pages of the open TIFF"
+                        Click="OcrButton_Click">
+                    <local:ToolbarIcon Glyph="&#xE8A5;" IsHitTestVisible="False" />
+                </Button>
             </StackPanel>
             <Button x:Name="CropSaveDestinationButton" AutomationProperties.Name="Save to"
                     MinWidth="0" Margin="{x:Static local:ViewerSettings.ToolbarButtonMargin}"
@@ -320,10 +330,16 @@
                              Content="{Binding PlacementTarget.Text, RelativeSource={RelativeSource Self}}" />
                 </TextBlock.ToolTip>
             </TextBlock>
-            <ProgressBar x:Name="DiffProgressBar" Grid.Column="1" Visibility="Collapsed"
-                         Minimum="0" Maximum="100" Height="8" Margin="12,0,0,0" VerticalAlignment="Center"
-                         Width="{x:Static local:ViewerSettings.DiffProgressBarWidth}"
-                         AutomationProperties.Name="Diff TIFF creation progress" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ProgressBar x:Name="OcrProgressBar" Visibility="Collapsed"
+                             Height="8" Margin="12,0,0,0"
+                             Width="{x:Static local:OcrSearchSettings.ProgressBarWidth}"
+                             AutomationProperties.Name="TIFF text recognition progress" />
+                <ProgressBar x:Name="DiffProgressBar" Visibility="Collapsed"
+                             Minimum="0" Maximum="100" Height="8" Margin="12,0,0,0"
+                             Width="{x:Static local:ViewerSettings.DiffProgressBarWidth}"
+                             AutomationProperties.Name="Diff TIFF creation progress" />
+            </StackPanel>
             <TextBlock x:Name="ZoomStatusText" Grid.Column="2" Text="—" Margin="12,0,0,0"
                        VerticalAlignment="Center" />
         </Grid>

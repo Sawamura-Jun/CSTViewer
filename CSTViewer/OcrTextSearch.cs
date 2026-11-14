@@ -35,7 +35,7 @@ internal static class OcrTextSearch
             {
                 string word = NormalizeWidth(line[index].Text);
                 // OCRが分けた日本語はつなぎ、英数字の単語間には空白を入れる。
-                if (text.Length > 0 && !IsJapanese(text[^1]) && !IsJapanese(word[0]))
+                if (text.Length > 0 && NeedsWordSeparator(text[^1], word[0]))
                     text.Append(' ');
                 int start = text.Length;
                 text.Append(word);
@@ -62,6 +62,8 @@ internal static class OcrTextSearch
         }
         return matches.ToArray();
     }
+
+    internal static bool NeedsWordSeparator(char previous, char next) => !IsJapanese(previous) && !IsJapanese(next);
 
     private static bool IsJapanese(char character) =>
         character is >= '\u3001' and <= '\u30ff' or >= '\u3400' and <= '\u9fff' or >= '\uff65' and <= '\uff9f';

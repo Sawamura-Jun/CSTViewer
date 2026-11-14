@@ -11,7 +11,8 @@ namespace CSTViewer;
 
 internal static class DrawingLineRemoval
 {
-    public static Size[] SaveAs(string sourcePath, string outputPath, int pageCount, CancellationToken token)
+    public static Size[] SaveAs(string sourcePath, string outputPath, int pageCount, CancellationToken token,
+        IProgress<int>? preparedPages = null)
     {
         ImageLoader.InitializeVips();
         var encoder = new TiffBitmapEncoder { Compression = TiffCompressOption.Ccitt4 };
@@ -29,6 +30,7 @@ internal static class DrawingLineRemoval
                 throw new InvalidDataException("The TIFF page count changed. Reopen the image and try again.");
             sizes[index] = new Size(source.Width, source.Height);
             encoder.Frames.Add(RemoveLines(source, token));
+            preparedPages?.Report(index + 1);
         }
 
         token.ThrowIfCancellationRequested();

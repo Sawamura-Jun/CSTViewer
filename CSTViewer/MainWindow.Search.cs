@@ -9,20 +9,28 @@ namespace CSTViewer;
 
 public partial class MainWindow
 {
-    private CancellationTokenSource? _searchCancellation;
+    private CancellationTokenSource? _ocrCancellation;
     private Rect[][]? _searchMatches;
     private string? _searchStatus;
+    private string? _ocrStatus;
+    private string? _ocrProgressStatus;
 
     private void UpdateSearchControls()
     {
-        bool canSearch = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy &&
+        bool hasTiff = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy &&
             _session is { } session && ImageLoader.IsTiff(session.Path);
-        SearchTextBox.IsEnabled = canSearch;
-        SearchTextBox.IsReadOnly = _searchCancellation is not null;
-        SearchButton.IsEnabled = canSearch && _searchCancellation is null && !string.IsNullOrWhiteSpace(SearchTextBox.Text);
+        SearchTextBox.IsEnabled = hasTiff;
+        SearchTextBox.IsReadOnly = _ocrCancellation is not null;
+        OcrButton.IsEnabled = hasTiff && _ocrCancellation is null;
+        SearchButton.IsEnabled = OcrButton.IsEnabled && !string.IsNullOrWhiteSpace(SearchTextBox.Text);
     }
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e) => await SearchTiffAsync();
+
+    private async void OcrButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (OcrButton.IsEnabled) await RunTiffOcrAsync(query: null);
+    }
 
     private async void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
     {
@@ -43,51 +51,101 @@ public partial class MainWindow
         UpdateSearchControls();
     }
 
-    private async Task SearchTiffAsync()
+    private Task SearchTiffAsync() =>
+        SearchButton.IsEnabled ? RunTiffOcrAsync(SearchTextBox.Text) : Task.CompletedTask;
+
+    private async Task RunTiffOcrAsync(string? query)
     {
-        if (!SearchButton.IsEnabled || _session is not { } session) return;
-        string query = SearchTextBox.Text;
+        if (_session is not { } session || _ocrCancellation is not null) return;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(session.Token);
-        _searchCancellation = cancellation;
-        _searchMatches = null;
+        _ocrCancellation = cancellation;
         _saveStatus = _diffStatus = _cropStatus = _spreadStatus = null;
-        _searchStatus = "Searching TIFF text…";
+        _ocrStatus = null;
+        if (query is not null)
+        {
+            _searchMatches = null;
+            _searchStatus = null;
+            UpdateSearchHighlights();
+        }
+        string operation = query is null ? "OCR" : "Search";
+        _ocrProgressStatus = query is null ? "Running OCR…" : "Searching TIFF text…";
+        OcrProgressBar.Maximum = session.PageCount;
+        OcrProgressBar.Value = 0;
+        OcrProgressBar.IsIndeterminate = true;
+        OcrProgressBar.Visibility = Visibility.Visible;
         UpdateSearchControls();
-        UpdateSearchHighlights();
         UpdateStatusText();
         ImageViewportCanvas.Focus();
+        // 前処理中は完了ページ数を表示し、Tesseractの認識中はアニメーションで処理中を示す。
+        var preparedPages = new Progress<int>(count =>
+        {
+            if (!IsCurrentOcr(session, cancellation)) return;
+            bool recognizing = count == session.PageCount;
+            OcrProgressBar.Value = count;
+            OcrProgressBar.IsIndeterminate = recognizing;
+            _ocrProgressStatus = recognizing ? $"{operation} · Recognizing text…"
+                : $"{operation} · Preparing pages: {count:N0} / {session.PageCount:N0}";
+            UpdateStatusText();
+        });
         try
         {
-            Rect[][] matches = await TiffSearch.FindMatchesAsync(session.Path, session.PageCount, query, cancellation.Token);
-            if (_isClosed || _session != session || _searchCancellation != cancellation) return;
-            _searchMatches = matches;
-            _searchStatus = $"Matches: {matches.Sum(page => page.Length):N0} · Pages with matches: {matches.Count(page => page.Length != 0):N0}";
-            UpdateSearchHighlights();
+            if (query is null)
+            {
+                OcrSearchPage[] pages = await TiffSearch.RecognizePagesAsync(session.Path, session.PageCount,
+                    cancellation.Token, preparedPages);
+                if (!IsCurrentOcr(session, cancellation)) return;
+                new OcrResultWindow(this, session.Path, pages).Show();
+                _ocrStatus = $"OCR complete · Pages: {pages.Length:N0}";
+            }
+            else
+            {
+                Rect[][] matches = await TiffSearch.FindMatchesAsync(session.Path, session.PageCount, query,
+                    cancellation.Token, preparedPages);
+                if (!IsCurrentOcr(session, cancellation)) return;
+                _searchMatches = matches;
+                _searchStatus = $"Matches: {matches.Sum(page => page.Length):N0} · Pages with matches: {matches.Count(page => page.Length != 0):N0}";
+                UpdateSearchHighlights();
+            }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsImageLoadException(exception) || exception is InvalidDataException
             or Win32Exception or OpenCvSharp.OpenCVException or EntryPointNotFoundException or BadImageFormatException or OverflowException)
         {
-            if (!_isClosed && _session == session && _searchCancellation == cancellation)
-                _searchStatus = $"Search failed: {exception.Message}";
+            if (IsCurrentOcr(session, cancellation))
+            {
+                if (query is null) _ocrStatus = $"OCR failed: {exception.Message}";
+                else _searchStatus = $"Search failed: {exception.Message}";
+            }
         }
         finally
         {
-            if (_searchCancellation == cancellation)
+            if (_ocrCancellation == cancellation)
             {
-                _searchCancellation = null;
+                ClearOcrProgress();
                 UpdateSearchControls();
                 UpdateStatusText();
             }
         }
     }
 
-    private void ResetTiffSearch()
+    private bool IsCurrentOcr(ImageLoadSession session, CancellationTokenSource cancellation) =>
+        !_isClosed && _session == session && _ocrCancellation == cancellation && !cancellation.IsCancellationRequested;
+
+    private void ClearOcrProgress()
     {
-        _searchCancellation?.Cancel();
-        _searchCancellation = null;
+        _ocrCancellation = null;
+        _ocrProgressStatus = null;
+        OcrProgressBar.Visibility = Visibility.Collapsed;
+        OcrProgressBar.IsIndeterminate = false;
+    }
+
+    private void ResetTiffOcr()
+    {
+        _ocrCancellation?.Cancel();
+        ClearOcrProgress();
         _searchMatches = null;
         _searchStatus = null;
+        _ocrStatus = null;
         UpdateSearchHighlights();
     }
 

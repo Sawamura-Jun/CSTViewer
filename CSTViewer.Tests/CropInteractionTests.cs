@@ -282,6 +282,8 @@ public class CropInteractionTests
                 Assert.Contains(language.Crop.SaveToDescription, new TextRange(document.ContentStart, document.ContentEnd).Text);
                 var search = Assert.Single(language.Toolbar.Rows, row => row.ButtonName == nameof(MainWindow.SearchButton));
                 Assert.Contains(search.Description, new TextRange(document.ContentStart, document.ContentEnd).Text);
+                var ocr = Assert.Single(language.Toolbar.Rows, row => row.ButtonName == nameof(MainWindow.OcrButton));
+                Assert.Contains(ocr.Description, new TextRange(document.ContentStart, document.ContentEnd).Text);
             }
         }
         finally { window.Close(); }

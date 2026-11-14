@@ -34,6 +34,7 @@ CSTViewer is a fast image viewer for Windows 11, built with C# and .NET 10 (WPF)
 - Compare two windows side by side with synchronized zoom, pan, navigation, and 90° rotation. R / L rotates the currently displayed page in each window by the same amount.
 - Generate image diffs with additions in red and deletions in blue.
 - Search drawing text across all pages of an open TIFF with OCR and highlight matches on the current page with translucent red shading.
+- Show recognized text from every TIFF page in a separate window. The status bar shows progress during search and OCR.
 - Select, save, and copy image regions to the clipboard.
 - Copy the entire source file to the desktop with the **Save** button.
 
@@ -66,6 +67,7 @@ dotnet run --project .\CSTViewer\CSTViewer.csproj -- "C:\images\sample.tif"
 | New window / toggle synchronization | Ctrl+Shift+N / S |
 | Generate a diff (current window is the new image) | D |
 | Search TIFF text | Enter in the search box or click the magnifying glass |
+| Show OCR results for all TIFF pages | Click the OCR button next to the magnifying glass |
 | Select a region / save and copy it | Right drag / click inside the selection |
 | Copy selection / clear selection | Ctrl+C / Esc |
 
