@@ -14,7 +14,7 @@ CSTViewer is a fast Windows 11 image viewer for technical drawings, built with C
 
 ### Large-image rendering
 
-CSTViewer loads TIFF pages at 1.8 times the initial fit resolution, up to the source resolution. It displays the first page as soon as it is ready and preloads the remaining pages at the same quality. During wheel zoom, CSTViewer uses the cached page image. After 220 ms without wheel input, it restores usable cached detail and refines the image if the new view requires more resolution.
+CSTViewer loads TIFF pages at 1.8 times the initial fit resolution, up to the source resolution. It displays the first page as soon as it is ready and preloads the remaining pages at the same quality. During wheel zoom, CSTViewer uses the initial TIFF page image. To keep the image that was visible when the gesture began, select **Keep detail while zooming TIFFs** in the notification area menu. The setting applies until CSTViewer exits. After 220 ms without wheel input, CSTViewer restores usable cached detail and refines the image if the new view requires more resolution.
 
 For TIFFs, CSTViewer first refines the visible area, then adds a margin of 50% on each side for panning, followed by the full page. Page preview preloading takes priority over margin and full-page refinement. At Fit, a detail image that already covers the page also serves as the full-page image. CSTViewer retains generated full-page detail images for the open file and caches up to 64 preview pages and 16 pages of mipmaps. Monochrome TIFFs use 8-bit grayscale display images.
 

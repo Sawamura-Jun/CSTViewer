@@ -98,8 +98,10 @@ public class DetailRegionInteractionTests
         string path = TemporaryPath();
         var window = CreateWindow();
         ImageLoadSession? session = null;
+        bool previousSetting = ViewerSettings.KeepZoomStartImage;
         try
         {
+            ViewerSettings.KeepZoomStartImage = true;
             var pixels = new byte[2048 * 1536 * 4];
             for (int offset = 0; offset < pixels.Length; offset += 4)
             {
@@ -121,28 +123,37 @@ public class DetailRegionInteractionTests
             Assert.NotNull(((Image)window.FindName("DisplayedImage")).Clip);
             var canvas = Canvas(window);
             window.HandleViewportWheel(new Point(canvas.ActualWidth / 2, canvas.ActualHeight / 2), -120, ModifierKeys.None);
-            Assert.Equal(Visibility.Collapsed, ((Image)window.FindName("DetailRegionImage")).Visibility);
-            // ズーム中のプレビューにも穴や二重描画がなく、半透明画素の見え方を保つ。
-            Assert.Null(((Image)window.FindName("DisplayedImage")).Clip);
+            Assert.Equal(Visibility.Visible, ((Image)window.FindName("DetailRegionImage")).Visibility);
+            // ズーム中もくり抜きを維持し、半透明の画素を重ねて描画しない。
+            Assert.NotNull(((Image)window.FindName("DisplayedImage")).Clip);
             Assert.Equal(before, RenderCenter(canvas));
             Method(window, "ZoomInteractionTimer_Tick", null, EventArgs.Empty);
             Assert.Equal(Visibility.Visible, ((Image)window.FindName("DetailRegionImage")).Visibility);
             Assert.NotNull(((Image)window.FindName("DisplayedImage")).Clip);
             Assert.Equal(before, RenderCenter(canvas));
         }
-        finally { await CloseAsync(window, session); File.Delete(path); }
+        finally
+        {
+            ViewerSettings.KeepZoomStartImage = previousSetting;
+            await CloseAsync(window, session);
+            File.Delete(path);
+        }
     });
 
     [Theory]
-    [InlineData(120)]
-    [InlineData(-120)]
-    public Task ContinuousZoom_ShowsOnlyPreviewThenRestoresCachedDetail(int delta) => RunOnStaAsync(async () =>
+    [InlineData(120, true)]
+    [InlineData(-120, true)]
+    [InlineData(120, false)]
+    [InlineData(-120, false)]
+    public Task ContinuousZoom_UsesSelectedImageThenRestoresCachedDetail(int delta, bool keepDetail) => RunOnStaAsync(async () =>
     {
         string path = TemporaryPath();
         var window = CreateWindow();
         ImageLoadSession? session = null;
+        bool previousSetting = ViewerSettings.KeepZoomStartImage;
         try
         {
+            ViewerSettings.KeepZoomStartImage = keepDetail;
             SaveLargeImage(path);
             await OpenWithoutAutomaticDetails(window, path);
             session = Session(window);
@@ -153,17 +164,19 @@ public class DetailRegionInteractionTests
             var canvas = Canvas(window);
             var image = (Image)window.FindName("DisplayedImage");
             var detail = (Image)window.FindName("DetailRegionImage");
+            var detailSource = detail.Source;
+            var clip = image.Clip;
             var anchor = new Point(canvas.ActualWidth / 2, canvas.ActualHeight / 2);
-            // 合計220msを超えても入力が続く間は高精細レイヤーを再表示しない。
+            // 入力が続く間は、開始時に選んだ描画元とくり抜きを使い続ける。
             for (int step = 0; step < 4; step++)
             {
                 window.HandleViewportWheel(anchor, delta, ModifierKeys.None);
                 await Task.Delay(70);
                 Assert.True(Field<bool>(window, "_isZoomInteracting"));
                 Assert.Same(Page(window).Bitmap, image.Source);
-                Assert.Equal(Visibility.Collapsed, detail.Visibility);
-                Assert.Null(detail.Source);
-                Assert.Null(image.Clip);
+                Assert.Equal(keepDetail ? Visibility.Visible : Visibility.Collapsed, detail.Visibility);
+                Assert.Same(keepDetail ? detailSource : null, detail.Source);
+                Assert.Same(keepDetail ? clip : null, image.Clip);
                 Assert.Same(full, CurrentRegion(window));
             }
             await WaitForAsync(() => !Field<bool>(window, "_isZoomInteracting") && detail.Visibility == Visibility.Visible);
@@ -172,7 +185,12 @@ public class DetailRegionInteractionTests
             Assert.NotNull(image.Clip);
             Assert.False(IsDetailLoading(window));
         }
-        finally { await CloseAsync(window, session); File.Delete(path); }
+        finally
+        {
+            ViewerSettings.KeepZoomStartImage = previousSetting;
+            await CloseAsync(window, session);
+            File.Delete(path);
+        }
     });
 
     [Fact]
@@ -195,7 +213,7 @@ public class DetailRegionInteractionTests
             var image = (Image)window.FindName("DisplayedImage");
             var detail = (Image)window.FindName("DetailRegionImage");
             window.HandleViewportWheel(new Point(canvas.ActualWidth / 2, canvas.ActualHeight / 2), 120, ModifierKeys.None);
-            // デコード完了までズーム状態を保ち、完了通知で再表示されないことを確認する。
+            // デコード完了までズーム状態を保ち、完了通知で描画元が変わらないことを確認する。
             Field<DispatcherTimer>(window, "_zoomInteractionTimer").Stop();
             var full = await loading;
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);

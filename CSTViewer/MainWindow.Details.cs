@@ -214,7 +214,9 @@ public partial class MainWindow
         if (_session is not { } session || _currentPage is not { } page || !ImageLoader.IsTiff(session.Path)) return;
         if (_isZoomInteracting)
         {
-            HideDisplayedDetailRegion();
+            // 開始時の高精細画像とくり抜きを維持し、画像の位置だけを更新する。
+            if (_keepZoomStartImage) UpdateDetailRegionTransform();
+            else HideDisplayedDetailRegion();
             return;
         }
         double displayScale = GetDisplayScale();

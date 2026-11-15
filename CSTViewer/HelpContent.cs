@@ -47,7 +47,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 " — Click the crop icon to open a window where you can enter a folder path or filename. Select OK to apply the change. Leave the field blank to use the source folder and an automatic filename."),
             new("Mouse controls", "Action",
             [
-                ("Mouse wheel", "Zoom around the pointer."),
+                ("Mouse wheel", "Zoom around the pointer. For TIFFs, the initial page image is used during zoom. To keep the image visible when zooming starts, right-click the CSTViewer notification area icon and select Keep detail while zooming TIFFs. The setting applies until CSTViewer exits."),
                 ("Left-drag", "Pan the image by dragging outside the crop selection."),
                 ("Ctrl + mouse wheel", "Resize the window in its normal state."),
                 ("Left double-click", "Maximize or restore the window."),
@@ -93,7 +93,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 " のクロップアイコンを押し、開いたウィンドウにフォルダーのパスかファイル名を入力して OK を押します。空欄にすると、元画像と同じフォルダーに自動で付けた名前で保存します。"),
             new("マウス操作", "操作",
             [
-                ("ホイール", "ポインターの位置を中心に拡大・縮小します。"),
+                ("ホイール", "ポインターの位置を中心に拡大・縮小します。TIFFのズーム中は最初に表示したページ画像を使います。ズーム開始時に表示していた画像を使うには、通知領域のCSTViewerアイコンを右クリックして「Keep detail while zooming TIFFs」にチェックを入れます。設定はCSTViewerを終了するまで有効です。"),
                 ("左ドラッグ", "切り抜きの選択枠の外側で画像を移動します。"),
                 ("Ctrl ＋ ホイール", "通常表示時にウィンドウのサイズを変更します。"),
                 ("左ダブルクリック", "最大化と通常表示を切り替えます。"),

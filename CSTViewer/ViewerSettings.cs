@@ -87,6 +87,7 @@ public static class ViewerSettings
     public const int StartupRequestPathLimit = StartupSettings.RequestPathLimit;
     public const int StartupRequestByteLimit = StartupSettings.RequestByteLimit;
     public const double WheelZoomFactor = 1.25;
+    internal static bool KeepZoomStartImage { get; set; }
     public const bool DefaultFitWheelZoomEnabled = false;
     public const double MouseWheelDeltaPerStep = 120;
     public const double MaximumZoomScale = 32;

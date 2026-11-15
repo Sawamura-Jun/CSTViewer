@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private bool _isDetailLoading;
     private bool _isInteracting;
     private bool _isZoomInteracting;
+    private bool _keepZoomStartImage;
     private bool _isFittingWindow;
     private BitmapSource? _displaySource;
     private BitmapSource? _interactionPreview;
@@ -941,11 +942,16 @@ public partial class MainWindow : Window
         bool started = !_isZoomInteracting;
         BeginViewportInteraction();
         _isZoomInteracting = true;
-        // Python版と同じく、ズーム中は高精細画像を描画せず軽いプレビューだけを使う。
-        if (started && _interactionPreview is { } preview)
+        if (started)
         {
-            HideDisplayedDetailRegion();
-            SetDisplayedBitmap(preview);
+            // 操作の途中で表示元が変わらないよう、ズームを始めるたびに設定を読む。
+            _keepZoomStartImage = ViewerSettings.KeepZoomStartImage
+                && _session is { } session && ImageLoader.IsTiff(session.Path);
+            if (!_keepZoomStartImage && _interactionPreview is { } preview)
+            {
+                HideDisplayedDetailRegion();
+                SetDisplayedBitmap(preview);
+            }
         }
         if (_zoomInteractionTimer is null)
         {
@@ -983,7 +989,8 @@ public partial class MainWindow : Window
 
     private void ApplyViewport()
     {
-        if (_displaySource is { } source && _session?.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) is { } bitmap)
+        if (!(_isZoomInteracting && _keepZoomStartImage) && _displaySource is { } source
+            && _session?.Mipmaps.Get(source, GetMipmapLevel(source), _currentPage?.Index ?? 0) is { } bitmap)
             DisplayedImage.Source = bitmap;
         // RenderTransformはレイアウトの再計算を避け、パン・ズーム時の負荷を抑える。
         ImageTransform.Matrix = _viewport.ImageToViewMatrix;

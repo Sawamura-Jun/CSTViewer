@@ -26,15 +26,24 @@ internal sealed class TrayIcon : IDisposable
         {
             Name = "TrayApplicationMenu",
             ShowImageMargin = false,
+            ShowCheckMargin = true,
             Font = _font,
             ForeColor = Drawing.ColorTranslator.FromHtml(ViewerSettings.TrayMenuForeground),
             Renderer = new Forms.ToolStripProfessionalRenderer(new DarkMenuColors()) { RoundedEdges = false }
         };
         var openItem = new Forms.ToolStripMenuItem("Open CSTViewer") { Name = "TrayOpenViewerMenuItem" };
+        var keepZoomImageItem = new Forms.ToolStripMenuItem("Keep detail while zooming TIFFs")
+        {
+            Name = "TrayKeepZoomStartImageMenuItem",
+            CheckOnClick = true,
+            Checked = ViewerSettings.KeepZoomStartImage
+        };
         var exitItem = new Forms.ToolStripMenuItem("Exit") { Name = "TrayExitApplicationMenuItem" };
         openItem.Click += (_, _) => openViewer();
+        keepZoomImageItem.CheckedChanged += (_, _) => ViewerSettings.KeepZoomStartImage = keepZoomImageItem.Checked;
         exitItem.Click += (_, _) => exitApplication();
         _menu.Items.Add(openItem);
+        _menu.Items.Add(keepZoomImageItem);
         _menu.Items.Add(exitItem);
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -67,6 +76,9 @@ internal sealed class TrayIcon : IDisposable
         private static Drawing.Color Hover => Drawing.ColorTranslator.FromHtml(ViewerSettings.TrayMenuHoverBackground);
         private static Drawing.Color Border => Drawing.ColorTranslator.FromHtml(ViewerSettings.TrayMenuBorder);
         public override Drawing.Color ToolStripDropDownBackground => Background;
+        public override Drawing.Color ImageMarginGradientBegin => Background;
+        public override Drawing.Color ImageMarginGradientMiddle => Background;
+        public override Drawing.Color ImageMarginGradientEnd => Background;
         public override Drawing.Color MenuBorder => Border;
         public override Drawing.Color MenuItemBorder => Border;
         public override Drawing.Color MenuItemSelected => Hover;

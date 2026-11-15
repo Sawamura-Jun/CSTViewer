@@ -150,7 +150,7 @@ public class DropInteractionTests
     }
 
     [Fact]
-    public Task RepeatedZoom_KeepsPreviewAndRefinesDetailAfterInteraction()
+    public Task RepeatedZoom_UsesInitialImageByDefaultAndRefinesAfterInteraction()
     {
         return RunOnStaAsync(async () =>
         {
@@ -177,7 +177,7 @@ public class DropInteractionTests
                 await Task.Delay(ViewerSettings.ZoomInteractionIdleMilliseconds * 2 / 3);
                 RaiseWheel(canvas, 1);
                 await Task.Delay(ViewerSettings.ZoomInteractionIdleMilliseconds * 2 / 3);
-                // 連続操作中は高精細領域を隠し、くり抜きのないプレビューだけを描画する。
+                // 既定では連続操作中にページ全体画像を表示し、高精細領域は停止後に戻す。
                 Assert.Same(preview, image.Source);
                 Assert.Null(regionImage.Source);
                 Assert.Equal(Visibility.Collapsed, regionImage.Visibility);
@@ -228,13 +228,19 @@ public class DropInteractionTests
                 var matrix = ((MatrixTransform)image.RenderTransform).Matrix;
                 // 完成した全体画像を保ち、表示倍率に合う段階画像だけを切り替える。
                 Assert.Same(preview, image.Source);
+                var dpi = VisualTreeHelper.GetDpi(window);
+                double displayScale = matrix.M11 * Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
+                int level = BitmapMipmapCache.RequiredLevel(displayScale);
+                var session = (ImageLoadSession)typeof(MainWindow).GetField("_session",
+                    BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                // 停止判定の直後は全体画像が残るため、対象倍率の段階画像に切り替わるまで待つ。
                 await WaitForAsync(() => !(bool)zoomField.GetValue(window)!
+                    && session.Mipmaps.Get(fullDetail.Bitmap, level, fullDetail.PageIndex) is { } cached
+                    && ReferenceEquals(cached, regionImage.Source)
                     && RenderOptions.GetBitmapScalingMode(regionImage) == BitmapScalingMode.HighQuality);
                 Assert.Same(fullDetail, detailField.GetValue(window));
                 var reduced = (BitmapSource)regionImage.Source;
                 Assert.True(reduced.IsFrozen);
-                var dpi = VisualTreeHelper.GetDpi(window);
-                double displayScale = matrix.M11 * Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
                 Assert.True(reduced.PixelWidth >= regionImage.Width * Math.Min(1, displayScale) - 1);
                 Assert.Equal(matrix, ((MatrixTransform)image.RenderTransform).Matrix);
                 Assert.Equal(4000, image.Width);
