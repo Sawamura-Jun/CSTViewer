@@ -11,7 +11,8 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
         new("en", "English", "CSTViewer Help", "Language", "Function",
             new("Toolbar", "Button", "Shortcut",
             [
-                (nameof(MainWindow.SaveImageButton), "Save", "—", "Copy the entire open image file to the desktop."),
+                (nameof(MainWindow.SaveImageButton), "Save", "Ctrl+S",
+                    "Click to copy the entire original image file to the desktop. Hold Ctrl while clicking Save or press Ctrl+S to choose the save location and filename. The dialog opens on the desktop with the original filename."),
                 (nameof(MainWindow.OpenImageButton), "Open", "—",
                     "Choose a TIFF, PNG, JPEG, BMP, GIF, or WebP image. Animated GIF and WebP files display the first frame."),
                 (nameof(MainWindow.NewWindowButton), "New window", "Ctrl+Shift+N", "Open another viewer window."),
@@ -32,7 +33,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.SearchButton), "Search TIFF text", "Enter in search box",
                     "Type a query and search all pages of the open TIFF. Shaded red areas mark matches on the current page. Use the page controls to view other pages. The status bar shows progress while recognizing text. Searches reuse the recognized text while the TIFF stays open and unchanged."),
                 (nameof(MainWindow.OcrButton), "OCR results", "—",
-                    "Open the recognized text from every TIFF page in a separate window. Search and the OCR window share the recognition results from the Tesseract engine bundled with CSTViewer."),
+                    "Open the recognized text from every TIFF page in a separate window. Search and the OCR window share the recognition results from the Tesseract engine bundled with CSTViewer. In the OCR window, select Line art removal image to save the TIFF used for OCR after line art removal, including all pages. The save dialog opens on the desktop; you can choose another location and filename."),
                 (nameof(MainWindow.CropSaveDestinationButton), "Save to", "—",
                     "Open the save location window for crops and comparison images."),
                 (nameof(MainWindow.HelpButton), "Help", "—", "Open this help window.")
@@ -57,7 +58,8 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
         new("ja", "日本語", "CSTViewer ヘルプ", "表示言語", "機能",
             new("ツールバー", "ボタン", "ショートカット",
             [
-                (nameof(MainWindow.SaveImageButton), "保存", "—", "開いている画像ファイルを丸ごとデスクトップにコピーします。"),
+                (nameof(MainWindow.SaveImageButton), "保存", "Ctrl+S",
+                    "クリックすると元の画像ファイルを丸ごとデスクトップにコピーします。Ctrl を押しながら保存ボタンをクリックするか Ctrl+S を押すと、保存先とファイル名を選べます。ダイアログはデスクトップを開き、元のファイル名を表示します。"),
                 (nameof(MainWindow.OpenImageButton), "開く", "—",
                     "TIFF、PNG、JPEG、BMP、GIF、WebPの画像を選びます。アニメーションGIFとWebPは先頭フレームを表示します。"),
                 (nameof(MainWindow.NewWindowButton), "新しいウィンドウ", "Ctrl+Shift+N", "別のビューアーウィンドウを開きます。"),
@@ -78,7 +80,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
                 (nameof(MainWindow.SearchButton), "TIFFの文字検索", "検索欄で Enter",
                     "検索語を入力し、開いているTIFFの全ページを検索します。表示中のページの一致箇所を半透明の赤で塗りつぶします。他のページはページ移動ボタンで確認できます。文字認識中はステータスバーに進捗を表示します。同じTIFFを開いていてファイルに変更がない間は、認識結果を再利用します。"),
                 (nameof(MainWindow.OcrButton), "OCR結果", "—",
-                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。検索とOCRウィンドウは、CSTViewerに同梱のTesseractで得た認識結果を共有します。"),
+                    "TIFFの全ページから認識した文字を別ウィンドウに表示します。検索とOCRウィンドウは、CSTViewerに同梱のTesseractで得た認識結果を共有します。OCRウィンドウの「Line art removal image」を押すと、OCRに使った線画除去済みのTIFFを全ページ保存できます。保存ダイアログはデスクトップを最初に表示し、保存先とファイル名を変更できます。"),
                 (nameof(MainWindow.CropSaveDestinationButton), "保存先（Save to）", "—",
                     "切り抜きと差分画像の保存先を設定するウィンドウを開きます。"),
                 (nameof(MainWindow.HelpButton), "ヘルプ", "—", "このヘルプウィンドウを開きます。")

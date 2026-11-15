@@ -1,17 +1,78 @@
 using System.IO;
 using System.Text;
 using System.Windows;
+using Microsoft.Win32;
 
 namespace CSTViewer;
 
 public partial class OcrResultWindow : Window
 {
-    internal OcrResultWindow(MainWindow owner, string path, IReadOnlyList<OcrSearchPage> pages)
+    private readonly FileStream _preparedTiff;
+    private readonly string _defaultFileName;
+    private CancellationTokenSource? _saveCancellation;
+    private bool _isClosed;
+
+    internal OcrResultWindow(MainWindow owner, string path, OcrResult result)
     {
         InitializeComponent();
         Owner = owner;
         Title = $"OCR results — {Path.GetFileName(path)}";
-        OcrResultTextBox.Text = FormatPages(pages);
+        OcrResultTextBox.Text = FormatPages(result.Pages);
+        _defaultFileName = $"{Path.GetFileNameWithoutExtension(path)}{OcrSearchSettings.LineArtRemovalFileSuffix}.tif";
+        _preparedTiff = result.OpenPreparedTiff();
+    }
+
+    private async void LineArtRemovalImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_saveCancellation is not null) return;
+        using var cancellation = new CancellationTokenSource();
+        _saveCancellation = cancellation;
+        LineArtRemovalImageButton.IsEnabled = false;
+        try
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = OcrSearchSettings.LineArtRemovalButtonText,
+                InitialDirectory = DesktopFileSave.DefaultDirectory,
+                FileName = _defaultFileName,
+                Filter = "TIFF image (*.tif;*.tiff)|*.tif;*.tiff",
+                DefaultExt = ".tif",
+                OverwritePrompt = true
+            };
+            if (dialog.ShowDialog(this) != true || cancellation.IsCancellationRequested) return;
+
+            LineArtRemovalSaveStatus.Text = "Saving TIFF…";
+            LineArtRemovalSaveStatus.ToolTip = null;
+            // 何度でも保存できるよう、OCRに渡したTIFFを毎回先頭からコピーする。
+            _preparedTiff.Position = 0;
+            string saved = await DesktopFileSave.CopyAsync(_preparedTiff, dialog.FileName, overwrite: true, cancellation.Token);
+            if (_isClosed) return;
+            LineArtRemovalSaveStatus.Text = $"Saved: {Path.GetFileName(saved)}";
+            LineArtRemovalSaveStatus.ToolTip = saved;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            if (_isClosed) return;
+            LineArtRemovalSaveStatus.Text = "Save failed";
+            LineArtRemovalSaveStatus.ToolTip = null;
+            MessageBox.Show(this, exception.Message, "Save failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _saveCancellation = null;
+            if (_isClosed) _preparedTiff.Dispose();
+            else LineArtRemovalImageButton.IsEnabled = true;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _isClosed = true;
+        // コピー中ならキャンセルし、処理終了後に読み取りハンドルを閉じる。
+        if (_saveCancellation is { } cancellation) cancellation.Cancel();
+        else _preparedTiff.Dispose();
+        base.OnClosed(e);
     }
 
     internal static string FormatPages(IReadOnlyList<OcrSearchPage> pages)

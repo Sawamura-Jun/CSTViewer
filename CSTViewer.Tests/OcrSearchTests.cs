@@ -80,7 +80,9 @@ public class OcrSearchTests
                 encoder.Frames.Add(BitmapFrame.Create(bitmap, null, metadata, null));
             }
             using (var stream = File.Create(source)) encoder.Save(stream);
-            Size[] sizes = DrawingLineRemoval.SaveAs(source, prepared, 8, CancellationToken.None);
+            Size[] sizes;
+            using (var output = File.Create(prepared))
+                sizes = DrawingLineRemoval.WriteTiff(source, output, 8, CancellationToken.None);
             ImagePage[] displayPages = await Task.WhenAll(Enumerable.Range(0, sizes.Length)
                 .Select(index => ImageLoader.LoadPageAsync(source, index, new Size(width, width))));
             using var input = File.OpenRead(prepared);
@@ -102,6 +104,39 @@ public class OcrSearchTests
         {
             File.Delete(prepared);
             File.Delete(source);
+            directory.Delete();
+        }
+    }
+
+    [Fact]
+    public async Task SavingPreparedTiff_PreservesExactBytesAfterOcrCacheIsClosed()
+    {
+        DirectoryInfo directory = Directory.CreateTempSubdirectory("CSTViewer-search-save-test-");
+        string target = Path.Combine(directory.FullName, "saved.tif");
+        try
+        {
+            byte[] bytes = new byte[ViewerSettings.DesktopSaveBufferSize + 37];
+            new Random(123).NextBytes(bytes);
+            using var prepared = OcrResult.CreatePreparedTiff();
+            string preparedPath = prepared.Name;
+            await prepared.WriteAsync(bytes);
+            prepared.Flush();
+            using var result = new OcrResult([], prepared);
+            using (var first = result.OpenPreparedTiff())
+            using (var second = result.OpenPreparedTiff())
+            {
+                // 元画像を切り替えた後も、既に開いたOCRウィンドウからそれぞれ保存できる。
+                result.Dispose();
+                await DesktopFileSave.CopyAsync(first, target, overwrite: false);
+                Assert.Equal(bytes, await File.ReadAllBytesAsync(target));
+                await DesktopFileSave.CopyAsync(second, target, overwrite: true);
+                Assert.Equal(bytes, await File.ReadAllBytesAsync(target));
+            }
+            Assert.False(File.Exists(preparedPath));
+        }
+        finally
+        {
+            File.Delete(target);
             directory.Delete();
         }
     }

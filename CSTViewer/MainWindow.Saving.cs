@@ -1,5 +1,7 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
+using Microsoft.Win32;
 
 namespace CSTViewer;
 
@@ -9,9 +11,34 @@ public partial class MainWindow
     private string? _saveStatus;
     private bool IsSaveBusy => _saveCancellation is not null;
 
-    private async void SaveImageButton_Click(object sender, RoutedEventArgs e) => await SaveCurrentFileToDesktopAsync();
+    private async void SaveImageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) await SaveCurrentFileAsAsync();
+        else await SaveCurrentFileToDesktopAsync();
+    }
 
-    internal async Task<bool> SaveCurrentFileToDesktopAsync(string? desktopDirectory = null,
+    internal Task<bool> SaveCurrentFileToDesktopAsync(string? desktopDirectory = null,
+        Func<string, bool>? confirmOverwrite = null, Action<string>? showError = null) =>
+        SaveCurrentFileAsync(source => DesktopFileSave.TargetPath(source, desktopDirectory), confirmOverwrite, showError);
+
+    internal Task<bool> SaveCurrentFileAsAsync(Func<SaveFileDialog, bool?>? showDialog = null) => SaveCurrentFileAsync(source =>
+    {
+        string extension = Path.GetExtension(source);
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save original image",
+            InitialDirectory = DesktopFileSave.DefaultDirectory,
+            FileName = Path.GetFileName(source),
+            DefaultExt = extension,
+            Filter = $"Original image (*{extension})|*{extension}",
+            // ダイアログで保存先を選んだ後、通常の保存と同じ上書き確認を行う。
+            OverwritePrompt = false
+        };
+        bool? accepted = showDialog is null ? dialog.ShowDialog(this) : showDialog(dialog);
+        return accepted == true ? dialog.FileName : null;
+    });
+
+    private async Task<bool> SaveCurrentFileAsync(Func<string, string?> selectTarget,
         Func<string, bool>? confirmOverwrite = null, Action<string>? showError = null)
     {
         if (IsSpreadBusy || _spreadController.IsChangingImages(this) || _session is not { } session
@@ -22,17 +49,23 @@ public partial class MainWindow
         StopPanning();
         CancelCropDrag();
         _detailLoadTimer?.Stop();
-        ShowSaveStatus("Saving file to desktop…");
+        ShowSaveStatus("Saving file…");
         UpdateCropBusyState();
         string? target = null;
         try
         {
-            target = DesktopFileSave.TargetPath(session.Path, desktopDirectory);
+            target = selectTarget(session.Path);
+            if (cancellation.IsCancellationRequested) return false;
+            if (target is null)
+            {
+                ShowSaveStatus("Save cancelled.");
+                return false;
+            }
             bool overwrite = File.Exists(target);
             if (overwrite)
             {
                 bool confirmed = confirmOverwrite?.Invoke(target) ?? MessageBox.Show(this,
-                    $"A file with the same name already exists on the desktop.\nOverwrite it?\n\n{target}",
+                    $"A file with the same name already exists at the save location.\nOverwrite it?\n\n{target}",
                     "Save", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
                 if (!confirmed)
                 {
@@ -42,7 +75,7 @@ public partial class MainWindow
             }
             string saved = await DesktopFileSave.CopyAsync(session.Path, target, overwrite, cancellation.Token);
             if (_isClosed) return false;
-            ShowSaveStatus($"Saved to desktop: {saved}");
+            ShowSaveStatus($"Saved: {saved}");
             return true;
         }
         catch (OperationCanceledException) { return false; }
@@ -51,7 +84,7 @@ public partial class MainWindow
             if (!_isClosed)
             {
                 ShowSaveStatus($"Save failed: {exception.Message}");
-                string message = $"Failed to save the file to the desktop.\n\nSource:\n{session.Path}\n\nDestination:\n{target}\n\n{exception.Message}";
+                string message = $"Failed to save the file.\n\nSource:\n{session.Path}\n\nDestination:\n{target}\n\n{exception.Message}";
                 if (showError is not null) showError(message);
                 else MessageBox.Show(this, message, "Save failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             }

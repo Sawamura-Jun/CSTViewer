@@ -85,7 +85,7 @@ public partial class MainWindow
         });
         try
         {
-            OcrSearchPage[] pages = await session.GetOcrPagesAsync(cancellation.Token, preparedPages, () =>
+            OcrResult result = await session.GetOcrResultAsync(cancellation.Token, preparedPages, () =>
             {
                 if (query is null)
                 {
@@ -101,9 +101,10 @@ public partial class MainWindow
                 UpdateStatusText();
             });
             if (!IsCurrentOcr(session, cancellation)) return;
+            OcrSearchPage[] pages = result.Pages;
             if (query is null)
             {
-                new OcrResultWindow(this, session.Path, pages).Show();
+                new OcrResultWindow(this, session.Path, result).Show();
                 _ocrStatus = $"OCR complete · Pages: {pages.Length:N0}";
             }
             else

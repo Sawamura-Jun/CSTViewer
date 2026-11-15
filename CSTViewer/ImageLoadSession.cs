@@ -20,7 +20,7 @@ internal sealed class ImageLoadSession
             return new(file.Length, file.LastWriteTimeUtc, file.CreationTimeUtc);
         }
     }
-    private (OcrFileStamp Stamp, OcrSearchPage[] Pages)? _ocrCache;
+    private (OcrFileStamp Stamp, OcrResult Result)? _ocrCache;
 
     private sealed class FullPageWork(CancellationToken token, ImageDetailRequest request)
     {
@@ -62,22 +62,36 @@ internal sealed class ImageLoadSession
     }
 
     // 検索とOCR表示は同じ認識結果を使う。ファイル情報の読み取りはUIスレッドの外で行う。
-    public async Task<OcrSearchPage[]> GetOcrPagesAsync(CancellationToken token, IProgress<int> preparedPages,
+    public async Task<OcrResult> GetOcrResultAsync(CancellationToken token, IProgress<int> preparedPages,
         Action onCacheMiss)
     {
         OcrFileStamp stamp = await Task.Run(() => OcrFileStamp.Read(Path), token);
         token.ThrowIfCancellationRequested();
-        if (_ocrCache is { } cached && cached.Stamp == stamp) return cached.Pages;
+        if (_ocrCache is { } cached && cached.Stamp == stamp) return cached.Result;
 
-        _ocrCache = null;
+        ClearOcrCache();
         onCacheMiss();
-        OcrSearchPage[] pages = await TiffSearch.RecognizePagesAsync(Path, PageCount, token, preparedPages);
-        OcrFileStamp currentStamp = await Task.Run(() => OcrFileStamp.Read(Path), token);
-        token.ThrowIfCancellationRequested();
-        if (currentStamp != stamp) throw new IOException("The TIFF changed during OCR. Try again.");
+        OcrResult result = await TiffSearch.RecognizePagesAsync(Path, PageCount, token, preparedPages);
+        try
+        {
+            OcrFileStamp currentStamp = await Task.Run(() => OcrFileStamp.Read(Path), token);
+            token.ThrowIfCancellationRequested();
+            if (currentStamp != stamp) throw new IOException("The TIFF changed during OCR. Try again.");
 
-        _ocrCache = (stamp, pages);
-        return pages;
+            _ocrCache = (stamp, result);
+            return result;
+        }
+        catch
+        {
+            result.Dispose();
+            throw;
+        }
+    }
+
+    private void ClearOcrCache()
+    {
+        _ocrCache?.Result.Dispose();
+        _ocrCache = null;
     }
 
     public async Task<ImagePage> LoadPageAsync(int index, Size size, ImageLoadMeasurement? measurement, bool isPreload = false)
@@ -99,7 +113,7 @@ internal sealed class ImageLoadSession
     {
         if (_cancelled) return;
         _cancelled = true;
-        _ocrCache = null;
+        ClearOcrCache();
         // 実行中のネイティブ処理は完了を待ち、その結果と残りページを破棄する。
         _cancellation.Cancel();
         _cancellation.Dispose();

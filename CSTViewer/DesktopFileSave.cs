@@ -32,24 +32,37 @@ internal static class DesktopFileSave
         string target = Path.GetFullPath(targetPath);
         if (!File.Exists(source)) throw new FileNotFoundException("The source file could not be found.", source);
         if (source.Equals(target, StringComparison.OrdinalIgnoreCase)) return target;
+        var times = (File.GetLastWriteTimeUtc(source), File.GetLastAccessTimeUtc(source));
+        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read,
+            ViewerSettings.DesktopSaveBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return await CopyToTargetAsync(input, target, overwrite, token, times);
+    }, token);
+
+    public static Task<string> CopyAsync(Stream input, string targetPath, bool overwrite,
+        CancellationToken token = default) => Task.Run(() =>
+        CopyToTargetAsync(input, Path.GetFullPath(targetPath), overwrite, token), token);
+
+    private static async Task<string> CopyToTargetAsync(Stream input, string target, bool overwrite,
+        CancellationToken token, (DateTime Modified, DateTime Accessed)? sourceTimes = null)
+    {
+        token.ThrowIfCancellationRequested();
         if (Directory.Exists(target)) throw new IOException("The save location is a folder with the same name as the source file.");
 
         string temporary = Path.Combine(Path.GetDirectoryName(target)!, $".CSTViewer-save-{Guid.NewGuid():N}.tmp");
         try
         {
-            DateTime modified = File.GetLastWriteTimeUtc(source);
-            DateTime accessed = File.GetLastAccessTimeUtc(source);
             // 同じフォルダーの一時ファイルへ書き、失敗・キャンセル時に既存ファイルを保つ。
-            await using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read,
-                ViewerSettings.DesktopSaveBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
             await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 ViewerSettings.DesktopSaveBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 await input.CopyToAsync(output, ViewerSettings.DesktopSaveBufferSize, token);
                 await output.FlushAsync(token);
             }
-            File.SetLastWriteTimeUtc(temporary, modified);
-            File.SetLastAccessTimeUtc(temporary, accessed);
+            if (sourceTimes is { } times)
+            {
+                File.SetLastWriteTimeUtc(temporary, times.Modified);
+                File.SetLastAccessTimeUtc(temporary, times.Accessed);
+            }
             token.ThrowIfCancellationRequested();
             // overwrite=falseなら確認後に別のファイルが作られても上書きしない。
             File.Move(temporary, target, overwrite);
@@ -59,5 +72,5 @@ internal static class DesktopFileSave
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
-    }, token);
+    }
 }

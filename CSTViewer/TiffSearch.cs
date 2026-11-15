@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace CSTViewer;
 
 internal static class TiffSearch
@@ -7,7 +5,7 @@ internal static class TiffSearch
     // 見開きやファイル切り替えで、大判ページの前処理が同時に実行されるのを防ぐ。
     private static readonly SemaphoreSlim OcrGate = new(1);
 
-    public static Task<OcrSearchPage[]> RecognizePagesAsync(string path, int pageCount, CancellationToken token,
+    public static Task<OcrResult> RecognizePagesAsync(string path, int pageCount, CancellationToken token,
         IProgress<int>? preparedPages = null) =>
         Task.Run(async () =>
         {
@@ -15,18 +13,19 @@ internal static class TiffSearch
             try
             {
                 var startInfo = TiffOcr.CreateStartInfo();
-                DirectoryInfo workingDirectory = Directory.CreateTempSubdirectory("CSTViewer-OCR-");
-                string preparedPath = Path.Combine(workingDirectory.FullName, "text.tif");
+                var preparedTiff = OcrResult.CreatePreparedTiff();
                 try
                 {
-                    var sizes = DrawingLineRemoval.SaveAs(path, preparedPath, pageCount, token, preparedPages);
-                    return await TiffOcr.RecognizeSearchPagesAsync(preparedPath, startInfo, sizes, token)
+                    var sizes = DrawingLineRemoval.WriteTiff(path, preparedTiff, pageCount, token, preparedPages);
+                    preparedTiff.Position = 0;
+                    OcrSearchPage[] pages = await TiffOcr.RecognizeSearchPagesAsync(preparedTiff, startInfo, sizes, token)
                         .ConfigureAwait(false);
+                    return new OcrResult(pages, preparedTiff);
                 }
-                finally
+                catch
                 {
-                    File.Delete(preparedPath);
-                    workingDirectory.Delete();
+                    preparedTiff.Dispose();
+                    throw;
                 }
             }
             finally

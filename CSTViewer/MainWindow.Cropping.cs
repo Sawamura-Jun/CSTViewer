@@ -297,7 +297,7 @@ public partial class MainWindow
         ImageViewportCanvas.IsEnabled = !_isLoading && !_isCropBusy && !IsDiffBusy && !IsSaveBusy;
         // 読み込み中は待機カーソルだけにし、表示中の画像を覆って点滅させない。
         ImageViewportBorder.Cursor = _isLoading ? Cursors.Wait : null;
-        ImageLoadingText.Text = IsSaveBusy ? "Saving file to desktop…" : _isCropBusy ? _cropStatus : string.Empty;
+        ImageLoadingText.Text = IsSaveBusy ? "Saving file…" : _isCropBusy ? _cropStatus : string.Empty;
         LoadingOverlay.Visibility = _isCropBusy || IsSaveBusy ? Visibility.Visible : Visibility.Collapsed;
         UpdatePageControls();
     }

@@ -49,7 +49,7 @@
                 <local:ToolbarIcon Glyph="&#xE74E;" IsHitTestVisible="False" />
                 <Button.ToolTip>
                     <ToolTip FontSize="{x:Static local:ViewerSettings.UiFontSize}"
-                             Content="Copy the entire open file to the desktop with its original filename. Confirm before overwriting an existing file." />
+                             Content="Copy the original image file to the desktop. Ctrl+click or Ctrl+S lets you choose the save location." />
                 </Button.ToolTip>
             </Button>
             <Button x:Name="OpenImageButton" AutomationProperties.Name="Open image"

@@ -48,6 +48,42 @@ public class SaveInteractionTests
     });
 
     [Fact]
+    public Task SaveAs_UsesDesktopDefaultsAndCopiesToTheChosenPath() => RunOnStaAsync(async () =>
+    {
+        string directory = ImageDiffTests.CreateDirectory();
+        var window = Window();
+        try
+        {
+            string source = Path.Combine(directory, "元画像.tiff");
+            string target = Path.Combine(directory, "保存した画像.tiff");
+            ImageDiffTests.SavePages(source, (2, 1, [0, 0, 0, 255, 255, 255]), (1, 2, [255, 255, 255, 0, 0, 0]));
+            window.Show();
+            await window.OpenImageAsync(source);
+            await window.ChangePageAsync(1);
+
+            Assert.False(await window.SaveCurrentFileAsAsync(dialog =>
+            {
+                Assert.Equal(DesktopFileSave.DefaultDirectory, dialog.InitialDirectory);
+                Assert.Equal("元画像.tiff", dialog.FileName);
+                Assert.Equal("tiff", dialog.DefaultExt);
+                Assert.True(window.IsSpreadBusy);
+                return false;
+            }));
+            Assert.Single(Directory.GetFiles(directory));
+            Assert.True(((Button)window.FindName("SaveImageButton")).IsEnabled);
+
+            Assert.True(await window.SaveCurrentFileAsAsync(dialog =>
+            {
+                dialog.FileName = target;
+                return true;
+            }));
+            Assert.Equal(await File.ReadAllBytesAsync(source), await File.ReadAllBytesAsync(target));
+            Assert.Equal(source, window.DiffImagePath);
+        }
+        finally { window.Close(); Directory.Delete(directory, true); }
+    });
+
+    [Fact]
     public Task Overwrite_CancelAndConfirmBlockReentryAndRestoreControls() => RunOnStaAsync(async () =>
     {
         string directory = ImageDiffTests.CreateDirectory();

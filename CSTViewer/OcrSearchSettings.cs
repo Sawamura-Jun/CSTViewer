@@ -21,6 +21,8 @@ internal static class OcrSearchSettings
     public const double ResultWindowMinimumWidth = 420;
     public const double ResultWindowMinimumHeight = 260;
     public const double ResultTextFontSize = 14;
+    public const string LineArtRemovalButtonText = "Line art removal image";
+    public const string LineArtRemovalFileSuffix = "_line-art-removed";
     public static readonly Color HighlightColor = Color.FromArgb(89, 255, 0, 0);
 
     public static readonly string BundledTesseractDirectory = Path.Combine(AppContext.BaseDirectory, "Tesseract-OCR");

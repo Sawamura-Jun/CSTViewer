@@ -9,7 +9,7 @@ CSTViewer is a fast Windows 11 image viewer for technical drawings, built with C
 - **Side-by-side Sync.** Arrange two viewer windows on the same monitor and synchronize zoom, pan, page and file navigation, and rotation. Rotation applies the same 90° step to the displayed page in each window. Select **Sync** again to turn synchronization off.
 - **Image comparison.** With both images open, run **Compare** from the newer image's window. CSTViewer compares all pages against the image in the nearest other visible viewer window and shows progress in the status bar. It saves the result as a BigTIFF and opens it in a new window. Additions appear in red and deletions in blue.
 - **TIFF text search and OCR.** Search all pages of the open TIFF for recognized text. Translucent red highlights mark matches on the displayed page. The status bar reports the number of matches and how many pages contain them. The adjacent **OCR** button opens the recognized text for every page in a separate window. Both operations use bundled Tesseract 5 with English and Japanese recognition, including vertical Japanese, and show progress in the status bar.
-- **Crop and save.** Select a region to save and copy to the clipboard. Crops use the source file format, with lossless encoding for WebP. The **Save** button copies the entire source file to the desktop under its original name and asks before overwriting an existing file.
+- **Crop and save.** Select a region to save and copy to the clipboard. Crops use the source file format, with lossless encoding for WebP. The **Save** button copies the entire source file to the desktop under its original name. Ctrl+click **Save** or press Ctrl+S to choose a folder and filename. The dialog opens on the desktop with the original filename, and the app asks before overwriting an existing file.
 - **In-app help.** Click the **H** toolbar button for a guide to the toolbar, shortcuts, cropping, and mouse controls in English or Japanese.
 
 ### Large-image rendering
@@ -41,6 +41,7 @@ After the last viewer window closes, CSTViewer stays in the Windows notification
 | Action | Control |
 | --- | --- |
 | Open an image | **Open** button or drag and drop an image file |
+| Choose where to save the original image file | Ctrl+click **Save** or Ctrl+S |
 | Zoom around the pointer / pan | Mouse wheel / left-drag outside the crop selection |
 | Fit the entire image or trim margins when already fitted | F |
 | Toggle window resizing with mouse wheel zoom | A |

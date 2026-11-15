@@ -397,6 +397,12 @@ public partial class MainWindow : Window
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == ViewerSettings.SaveShortcutKey)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) await SaveCurrentFileAsAsync();
+            return;
+        }
         if (Keyboard.FocusedElement is TextBoxBase) return;
 
         if (e.Key == Key.N && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))

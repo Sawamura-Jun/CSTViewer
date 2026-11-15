@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.2.2";
+    public const string ApplicationTitle = "CSTViewer v1.2.3";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -62,6 +62,7 @@ public static class ViewerSettings
     public const Key NextFileShortcutKey = Key.W;
     public const Key RefreshFileListShortcutKey = Key.F5;
     public const Key SpreadShortcutKey = Key.S;
+    public const Key SaveShortcutKey = Key.S;
     public const Key DiffShortcutKey = Key.D;
     public const string DiffNoChangeText = "No differences detected";
     public const string DiffNoChangeFontFamily = "Meiryo";

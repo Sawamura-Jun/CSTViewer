@@ -11,7 +11,7 @@ namespace CSTViewer;
 
 internal static class DrawingLineRemoval
 {
-    public static Size[] SaveAs(string sourcePath, string outputPath, int pageCount, CancellationToken token,
+    public static Size[] WriteTiff(string sourcePath, Stream output, int pageCount, CancellationToken token,
         IProgress<int>? preparedPages = null)
     {
         ImageLoader.InitializeVips();
@@ -34,7 +34,6 @@ internal static class DrawingLineRemoval
         }
 
         token.ThrowIfCancellationRequested();
-        using var output = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         encoder.Save(output);
         return sizes;
     }

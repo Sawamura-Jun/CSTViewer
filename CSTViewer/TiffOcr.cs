@@ -50,11 +50,10 @@ internal static class TiffOcr
         return startInfo;
     }
 
-    public static async Task<OcrSearchPage[]> RecognizeSearchPagesAsync(string filePath,
+    public static async Task<OcrSearchPage[]> RecognizeSearchPagesAsync(Stream input,
         ProcessStartInfo startInfo, IReadOnlyList<Size> pageSizes, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        using var input = File.OpenRead(filePath);
         using var process = Process.Start(startInfo) ?? throw new IOException("Could not start Tesseract.");
         // パイプへの書き込み待ちでも、子プロセスを止めてキャンセルを進める。
         using var registration = token.Register(() =>
