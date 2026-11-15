@@ -48,7 +48,7 @@ internal sealed class ImageLoadSession
     public int LoadedPages { get; set; }
     public bool IsPreloading { get; set; } = true;
     public string? Error { get; set; }
-    // ① プレビュー画像: 初期表示・ページ切り替え・ズーム操作中に使う軽いページ全体画像。
+    // ① 初期表示寸法の1.8倍を目標とするページ全体画像。ページ切り替えやズーム操作中にも使う。
     public PageImageCache Previews { get; } = new(ViewerSettings.PreviewCachePageLimit);
     // ② 表示用高精細画像を保存する。先行する領域画像は、同じ必要解像度のページ全体画像で置き換える。
     public ImageDetailRegionCache Details { get; } = new(ViewerSettings.DetailCachePageLimit);
@@ -86,7 +86,8 @@ internal sealed class ImageLoadSession
         await DecodeQueue.WaitAsync(Token, isPreload);
         try
         {
-            return await ImageLoader.LoadPageAsync(Path, index, size, measurement, Token);
+            return await ImageLoader.LoadPageAsync(Path, index, size, measurement, Token,
+                resizeGap: ViewerSettings.DetailRegionResizeGap);
         }
         finally
         {

@@ -83,7 +83,7 @@ public class ImageSamplingQualityTests
     }
 
     [Fact]
-    public Task Fit_UpgradesPreviewAndKeepsDetailedImageWhenReturningFromZoom() => RunOnStaAsync(async () =>
+    public Task Fit_UsesInitialDetailAndKeepsItWhenReturningFromZoom() => RunOnStaAsync(async () =>
     {
         string path = Path.Combine(Path.GetTempPath(), $"CSTViewer-quality-{Guid.NewGuid():N}.tif");
         var window = CreateWindow();
@@ -93,18 +93,20 @@ public class ImageSamplingQualityTests
             window.Show();
             await window.OpenImageAsync(path);
             var viewport = Field<ImageViewport>(window, "_viewport");
-            await WaitForAsync(() => HasDetailedResolution(window));
+            var image = (Image)window.FindName("DisplayedImage");
+            var fit = image.Source;
+            Assert.NotNull(fit);
             Assert.True(viewport.IsFitMode);
-            Assert.Equal(BitmapScalingMode.HighQuality,
-                RenderOptions.GetBitmapScalingMode((Image)window.FindName("DetailRegionImage")));
+            Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
             var canvas = (FrameworkElement)window.FindName("ImageViewportCanvas");
             window.HandleViewportWheel(new Point(canvas.ActualWidth / 2, canvas.ActualHeight / 2),
                 120 * 2, System.Windows.Input.ModifierKeys.None);
             await WaitForAsync(() => HasDetailedResolution(window));
             window.FitImageLocally(resizeWindow: false);
-            await WaitForAsync(() => HasDetailedResolution(window));
             Assert.True(viewport.IsFitMode);
-            Assert.NotNull(((Image)window.FindName("DisplayedImage")).Clip);
+            Assert.Same(fit, image.Source);
+            Assert.Null(image.Clip);
+            Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(image));
         }
         finally
         {
@@ -112,6 +114,7 @@ public class ImageSamplingQualityTests
             window.Close();
             // Dispatcherを終了する前に、全体読み込みの後始末と共有デコード枠の解放を待つ。
             await WaitForAsync(() => !Field<bool>(window, "_isDetailLoading")
+                && Field<CancellationTokenSource?>(window, "_detailMarginCancellation") is null
                 && (session is null || !session.IsFullPageLoading(0)));
             File.Delete(path);
         }

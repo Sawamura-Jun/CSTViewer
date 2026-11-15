@@ -13,22 +13,16 @@ public partial class MainWindow
     {
         if (!CanApplyFullDetail(session, page) || _isCropBusy || IsDiffBusy || IsSaveBusy
             || session.IsFullPageLoading(page.Index)) return;
-        var bounds = new Rect(0, 0, page.SourceWidth, page.SourceHeight);
         double displayScale = GetDisplayScale();
+        // 最初に読み込んだページ全体画像で足りる場合は、同じ画素を別に生成しない。
+        if (!NeedsDetailRegion(page, displayScale)) return;
+        var bounds = new Rect(0, 0, page.SourceWidth, page.SourceHeight);
         // Fit時など、先行領域が既にページ全体と必要解像度を満たす場合は二重生成しない。
         if (session.Details.Get(page.Index, bounds, displayScale) is not null) return;
-        if (page.Bitmap.PixelWidth == page.SourceWidth && page.Bitmap.PixelHeight == page.SourceHeight)
-        {
-            // プレビューが既に元解像度なら、同じページをデコードし直さず共有する。
-            session.Details.Add(new ImageDetailRegion(page.Index,
-                new Int32Rect(0, 0, page.SourceWidth, page.SourceHeight), page.Bitmap));
-            return;
-        }
         // 次ページを早くめくれるよう、②のページ全体版は①のプレビュー先読み完了後に生成する。
         // 先読み完了時の詳細更新予約で、その時点で表示しているページを再確認する。
         if (session.IsPreloading) return;
-        if (NeedsDetailRegion(page, displayScale)
-            && _currentDetailRegion?.Covers(page.Index, _viewport.VisibleSourceBounds, displayScale) != true) return;
+        if (_currentDetailRegion?.Covers(page.Index, _viewport.VisibleSourceBounds, displayScale) != true) return;
         _ = LoadFullPageDetailsAsync(session, page, displayScale);
     }
 

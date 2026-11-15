@@ -234,9 +234,10 @@ public class DetailRegionInteractionTests
             SaveLargeImage(path);
             await OpenWithoutAutomaticDetails(window, path);
             session = Session(window);
-            await (Task)Method(window, "LoadVisibleDetailsAsync", session, Page(window))!;
-            var fitDetail = CurrentRegion(window)!;
-            Assert.True(Viewport(window).IsFitMode);
+            await StartZoomDetailLoad(window, zoomSteps: 2);
+            StartFullPageDetails(window);
+            await WaitForAsync(() => IsWholePageAtCurrentResolution(window) && !session.IsFullPageLoading(0));
+            var previousDetail = CurrentRegion(window)!;
             await gate.WaitAsync();
             held = true;
             var canvas = Canvas(window);
@@ -246,20 +247,20 @@ public class DetailRegionInteractionTests
             Assert.Equal(Visibility.Collapsed, detail.Visibility);
             Assert.Null(detail.Source);
             Assert.Null(image.Clip);
-            Assert.Equal(enoughForDisplay, fitDetail.CoversForDisplay(0, Viewport(window).VisibleSourceBounds, DisplayScale(window)));
-            Assert.False(fitDetail.Covers(0, Viewport(window).VisibleSourceBounds, DisplayScale(window)));
+            Assert.Equal(enoughForDisplay, previousDetail.CoversForDisplay(0, Viewport(window).VisibleSourceBounds, DisplayScale(window)));
+            Assert.False(previousDetail.Covers(0, Viewport(window).VisibleSourceBounds, DisplayScale(window)));
             // 新規デコード枠を塞いだままでも、220msの操作終了判定で保存済みの②が復帰する。
             await WaitForAsync(() => !Field<bool>(window, "_isZoomInteracting")
                 && detail.Visibility == Visibility.Visible && IsDetailLoading(window));
-            Assert.Same(fitDetail, CurrentRegion(window));
-            Assert.Same(fitDetail.Bitmap, detail.Source);
+            Assert.Same(previousDetail, CurrentRegion(window));
+            Assert.Same(previousDetail.Bitmap, detail.Source);
             Assert.NotNull(image.Clip);
             Assert.Null(session.Details.Get(0, Viewport(window).VisibleSourceBounds, DisplayScale(window)));
             gate.Release();
             held = false;
             await WaitForAsync(() => IsWholePageAtCurrentResolution(window)
                 && !IsDetailLoading(window) && !session.IsFullPageLoading(0));
-            Assert.True(CurrentRegion(window)!.Bitmap.PixelWidth > fitDetail.Bitmap.PixelWidth);
+            Assert.True(CurrentRegion(window)!.Bitmap.PixelWidth > previousDetail.Bitmap.PixelWidth);
             Assert.Equal(Visibility.Visible, detail.Visibility);
         }
         finally
@@ -423,7 +424,7 @@ public class DetailRegionInteractionTests
     });
 
     [Fact]
-    public Task Fit_CachesRequiredResolutionWithoutDuplicateDecodeAndUpgradesWhenZooming() => RunOnStaAsync(async () =>
+    public Task Fit_DisplaysRequiredResolutionImmediatelyAndUpgradesWhenZooming() => RunOnStaAsync(async () =>
     {
         string path = TemporaryPath();
         var window = CreateWindow();
@@ -436,18 +437,21 @@ public class DetailRegionInteractionTests
             window.Show();
             await window.OpenImageAsync(path);
             session = Session(window);
-            await WaitForAsync(() => IsWholePageAtCurrentResolution(window) && !IsDetailLoading(window));
-            var fitDetail = CurrentRegion(window)!;
+            var page = Page(window);
+            var image = (Image)window.FindName("DisplayedImage");
+            var fitSize = page.DetailDecodeSize(DisplayScale(window));
             Assert.True(Viewport(window).IsFitMode);
-            Assert.True(fitDetail.Bitmap.PixelWidth < 4096);
-            Assert.Same(fitDetail, session.Details.Get(0, Viewport(window).ImageBounds, DisplayScale(window)));
-            Assert.Null(session.Details.Get(0, Viewport(window).ImageBounds, 1));
-            // Fitの②は既にページ全体を含むため、デコード枠が空かなくても追加処理を開始しない。
+            Assert.InRange(page.Bitmap.PixelWidth, (int)fitSize.Width - 1, (int)fitSize.Width + 1);
+            Assert.InRange(page.Bitmap.PixelHeight, (int)fitSize.Height - 1, (int)fitSize.Height + 1);
+            Assert.Same(page.Bitmap, image.Source);
+            // デコード枠を塞いだ状態で詳細更新を実行し、初回表示だけで必要な画素数がそろうことを確認する。
             await gate.WaitAsync();
             held = true;
+            Method(window, "DetailLoadTimer_Tick", null, EventArgs.Empty);
             StartFullPageDetails(window);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
-            Assert.Same(fitDetail, CurrentRegion(window));
+            Assert.Null(CurrentRegion(window));
+            Assert.Same(page.Bitmap, image.Source);
             Assert.False(session.IsFullPageLoading(0));
             Assert.False(IsDetailLoading(window));
             gate.Release();
@@ -457,7 +461,7 @@ public class DetailRegionInteractionTests
             await WaitForAsync(() => !Field<bool>(window, "_isZoomInteracting")
                 && IsFullPage(CurrentRegion(window), 4096, 3072) && !session.IsFullPageLoading(0));
             var full = CurrentRegion(window)!;
-            Assert.NotSame(fitDetail, full);
+            Assert.NotSame(page.Bitmap, full.Bitmap);
             await gate.WaitAsync();
             held = true;
             BeginPan(canvas);
@@ -596,8 +600,9 @@ public class DetailRegionInteractionTests
             }
             else
             {
-                await WaitForAsync(() => CurrentRegion(window)?.PageIndex == 1 && IsWholePageAtCurrentResolution(window));
-                Assert.Equal(1, CurrentRegion(window)!.PageIndex);
+                await WaitForAsync(() => Page(window).Index == 1 && !IsDetailLoading(window));
+                Assert.Same(Page(window).Bitmap, ((Image)window.FindName("DisplayedImage")).Source);
+                Assert.True(CurrentRegion(window) is null or { PageIndex: 1 });
             }
         }
         finally

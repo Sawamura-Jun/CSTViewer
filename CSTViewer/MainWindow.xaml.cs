@@ -12,7 +12,7 @@ namespace CSTViewer;
 public partial class MainWindow : Window
 {
     // TIFFの画像状態の名称:
-    // ① プレビュー画像: ページ全体を画面サイズを目安に縮小し、初期表示・ページ切り替え・ズーム中に使う。
+    // ① ページ全体を初期表示寸法の1.8倍で読み込み、ページ切り替えやズーム中にも使う。
     // ② 表示用高精細画像（Loading image details…）: 表示倍率の1.8倍で生成・保存する（元解像度が上限）。
     // ②は表示領域を先に描画し、各辺50%のパン用余白、ページ全体の順に同じ解像度で補う。
     // Fit時は先行領域が既にページ全体のため、その②を保存して二重生成を省く。
@@ -180,7 +180,7 @@ public partial class MainWindow : Window
         SetLoadingState(true);
         try
         {
-            // ① プレビュー画像を先に表示し、②の完成前から操作できるようにする。
+            // 先頭ページを最初から表示に必要な解像度で読み込み、残りページに先立って表示する。
             ImagePage page = await session.LoadPageAsync(0, session.PreviewSize, measurement);
             session.Token.ThrowIfCancellationRequested();
             CompleteRenderMeasurement("SupersededBeforeRenderCallback");
@@ -282,8 +282,11 @@ public partial class MainWindow : Window
     private Size GetPreviewSize()
     {
         var dpi = VisualTreeHelper.GetDpi(this);
-        return new Size(Math.Max(ViewerSettings.MinimumPreviewDimension, ImageViewportCanvas.ActualWidth * dpi.DpiScaleX),
-            Math.Max(ViewerSettings.MinimumPreviewDimension, ImageViewportCanvas.ActualHeight * dpi.DpiScaleY));
+        double dpiScale = Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
+        return new Size(Math.Max(ViewerSettings.MinimumPreviewDimension, ImageViewportCanvas.ActualWidth * dpiScale)
+                * ViewerSettings.DetailOversamplingFactor,
+            Math.Max(ViewerSettings.MinimumPreviewDimension, ImageViewportCanvas.ActualHeight * dpiScale)
+                * ViewerSettings.DetailOversamplingFactor);
     }
 
     private void ShowPage(ImagePage page, bool resizeForOrientationChange = false)
@@ -306,7 +309,7 @@ public partial class MainWindow : Window
         _currentDetailBitmap = ImageLoader.IsTiff(_session!.Path) ? null : page.Bitmap;
         _displaySource = page.Bitmap;
         DisplayedImage.Source = page.Bitmap;
-        // 低解像度のプレビューでも、パン・ズームと寸法表示には元画像の座標を使う。
+        // 表示用画像の解像度にかかわらず、パン・ズームと寸法表示には元画像の座標を使う。
         DisplayedImage.Width = page.SourceWidth;
         DisplayedImage.Height = page.SourceHeight;
         _viewport.SetImage(new Size(page.SourceWidth, page.SourceHeight), _session.GetPageRotation(page.Index));

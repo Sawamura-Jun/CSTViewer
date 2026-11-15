@@ -13,7 +13,7 @@ public partial class MainWindow
     private bool _isDetailDecoding;
     private bool _detailAfterPanRequested;
 
-    // Fit時も①だけで打ち切らず、必要なら②として表示寸法の1.8倍（元解像度が上限）を確保する。
+    // 最初に読み込んだページ全体画像の解像度が足りない場合、追加で高精細化する。
     private static bool NeedsDetailRegion(ImagePage page, double displayScale) =>
         !HasEnoughResolution(page.Bitmap, page.DetailDecodeSize(displayScale));
 

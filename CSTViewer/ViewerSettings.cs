@@ -7,7 +7,7 @@ namespace CSTViewer;
 /// <summary>表示と操作感を調整するための主要パラメータ。</summary>
 public static class ViewerSettings
 {
-    public const string ApplicationTitle = "CSTViewer v1.2.1";
+    public const string ApplicationTitle = "CSTViewer v1.2.2";
     public const string UiCultureName = StartupSettings.UiCultureName;
     public const string TrayIconResourceName = "CSTViewer.Assets.CSTViewer.ico";
     public const string TrayMenuFontFamily = "Segoe UI";
@@ -96,7 +96,7 @@ public static class ViewerSettings
     public const int MinimumPreviewDimension = 512;
     public const int ImageDecodeConcurrency = 1;
     public const int ZoomInteractionIdleMilliseconds = 220;
-    public const int DetailAfterZoomIdleDelayMilliseconds = 40;
+    public const int DetailAfterZoomIdleDelayMilliseconds = 0;
     // 通常の詳細更新にはズーム関連の待機時間の合計を使い、パン終了後は待たずに更新する。
     public const int DetailLoadDelayMilliseconds = ZoomInteractionIdleMilliseconds + DetailAfterZoomIdleDelayMilliseconds;
     public const double DetailOversamplingFactor = 1.8;

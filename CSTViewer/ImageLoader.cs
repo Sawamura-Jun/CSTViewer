@@ -57,20 +57,20 @@ internal static class ImageLoader
         LoadPage(path, 0, new Size(int.MaxValue, int.MaxValue), measurement, CancellationToken.None).Bitmap;
 
     public static Task<ImagePage> LoadPageAsync(string path, int pageIndex, Size decodeSize,
-        ImageLoadMeasurement? measurement = null, CancellationToken cancellationToken = default)
+        ImageLoadMeasurement? measurement = null, CancellationToken cancellationToken = default, double? resizeGap = null)
     {
         measurement?.StartStage("WorkerQueue");
         // ページ単位でワーカーへ渡し、先頭ページの表示を全ページの完了まで待たせない。
         return Task.Run(() =>
         {
-            ImagePage page = LoadPage(path, pageIndex, decodeSize, measurement, cancellationToken);
+            ImagePage page = LoadPage(path, pageIndex, decodeSize, measurement, cancellationToken, resizeGap);
             measurement?.StartStage("UiDispatch");
             return page;
         }, cancellationToken);
     }
 
     private static ImagePage LoadPage(string path, int pageIndex, Size decodeSize,
-        ImageLoadMeasurement? measurement, CancellationToken cancellationToken)
+        ImageLoadMeasurement? measurement, CancellationToken cancellationToken, double? resizeGap = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(pageIndex);
@@ -87,7 +87,7 @@ internal static class ImageLoader
         measurement?.StartStage("DecodeAndRead");
         ImagePage result;
         if (IsTiff(path))
-            result = LoadTiffPage(path, pageIndex, decodeSize, measurement, cancellationToken);
+            result = LoadTiffPage(path, pageIndex, decodeSize, measurement, cancellationToken, resizeGap);
         else if (IsWebp(path))
             result = LoadWebpPage(path, pageIndex, measurement, cancellationToken);
         else
@@ -97,7 +97,7 @@ internal static class ImageLoader
     }
 
     private static ImagePage LoadTiffPage(string path, int pageIndex, Size decodeSize,
-        ImageLoadMeasurement? measurement, CancellationToken cancellationToken)
+        ImageLoadMeasurement? measurement, CancellationToken cancellationToken, double? resizeGap)
     {
         _ = VipsInitialized.Value;
         // n=1で異なるページ寸法にも対応する。Sequentialは上から順に画素を処理する指定。
@@ -106,7 +106,7 @@ internal static class ImageLoader
         int pageCount = source.GetTypeOf("n-pages") != 0 ? (int)source.Get("n-pages") : 1;
         double scale = Math.Min(1, Math.Min(decodeSize.Width / source.Width, decodeSize.Height / source.Height));
         // 遅延評価により、縮小結果だけをWPFへ実体化する。元画像全体のBitmapは作らない。
-        using var resized = scale < 1 ? source.Resize(scale, kernel: Enums.Kernel.Linear) : source.Copy();
+        using var resized = scale < 1 ? source.Resize(scale, kernel: Enums.Kernel.Linear, gap: resizeGap) : source.Copy();
         var bitmap = CreateVipsBitmap(resized, measurement, cancellationToken);
         SetMetadata(measurement, bitmap, source.Width, source.Height, pageCount);
         measurement?.StartStage("FileClose");
