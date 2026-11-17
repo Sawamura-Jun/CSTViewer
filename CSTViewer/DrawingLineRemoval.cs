@@ -1,22 +1,19 @@
 using System.IO;
-using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using OpenCvSharp;
 using VipsEnums = NetVips.Enums;
 using VipsImage = NetVips.Image;
-using Size = System.Windows.Size;
 
 namespace CSTViewer;
 
 internal static class DrawingLineRemoval
 {
-    public static Size[] WriteTiff(string sourcePath, Stream output, int pageCount, CancellationToken token,
+    public static BitmapFrame[] PrepareFrames(string sourcePath, int pageCount, CancellationToken token,
         IProgress<int>? preparedPages = null)
     {
         ImageLoader.InitializeVips();
-        var encoder = new TiffBitmapEncoder { Compression = TiffCompressOption.Ccitt4 };
-        var sizes = new Size[pageCount];
+        var frames = new BitmapFrame[pageCount];
         // ページごとの読み込み中に元ファイルが書き換わらないよう、読み取りハンドルを保持する。
         using var input = File.OpenRead(sourcePath);
         for (int index = 0; index < pageCount; index++)
@@ -28,14 +25,22 @@ internal static class DrawingLineRemoval
             int sourcePageCount = source.GetTypeOf("n-pages") != 0 ? (int)source.Get("n-pages") : 1;
             if (sourcePageCount != pageCount)
                 throw new InvalidDataException("The TIFF page count changed. Reopen the image and try again.");
-            sizes[index] = new Size(source.Width, source.Height);
-            encoder.Frames.Add(RemoveLines(source, token));
+            frames[index] = RemoveLines(source, token);
             preparedPages?.Report(index + 1);
         }
+        return frames;
+    }
 
+    public static void WriteTiff(Stream output, ReadOnlySpan<BitmapFrame> frames, CancellationToken token)
+    {
+        var encoder = new TiffBitmapEncoder { Compression = TiffCompressOption.Ccitt4 };
+        foreach (BitmapFrame frame in frames)
+        {
+            token.ThrowIfCancellationRequested();
+            encoder.Frames.Add(frame);
+        }
         token.ThrowIfCancellationRequested();
         encoder.Save(output);
-        return sizes;
     }
 
     private static BitmapFrame RemoveLines(VipsImage source, CancellationToken token)

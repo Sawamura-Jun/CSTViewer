@@ -80,9 +80,10 @@ public class OcrSearchTests
                 encoder.Frames.Add(BitmapFrame.Create(bitmap, null, metadata, null));
             }
             using (var stream = File.Create(source)) encoder.Save(stream);
-            Size[] sizes;
+            BitmapFrame[] frames = DrawingLineRemoval.PrepareFrames(source, 8, CancellationToken.None);
             using (var output = File.Create(prepared))
-                sizes = DrawingLineRemoval.WriteTiff(source, output, 8, CancellationToken.None);
+                DrawingLineRemoval.WriteTiff(output, frames, CancellationToken.None);
+            Size[] sizes = frames.Select(frame => new Size(frame.PixelWidth, frame.PixelHeight)).ToArray();
             ImagePage[] displayPages = await Task.WhenAll(Enumerable.Range(0, sizes.Length)
                 .Select(index => ImageLoader.LoadPageAsync(source, index, new Size(width, width))));
             using var input = File.OpenRead(prepared);
@@ -105,6 +106,80 @@ public class OcrSearchTests
             File.Delete(prepared);
             File.Delete(source);
             directory.Delete();
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(9)]
+    public async Task Recognition_KeepsTiffPageOrderAndSavesAllPages(int pageCount)
+    {
+        string source = CreateBlankTiff(pageCount);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        int expectedWorkers = Math.Min(pageCount, Math.Min(4, Environment.ProcessorCount));
+        var allWorkersStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var laterBatchReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int started = 0;
+        try
+        {
+            using OcrResult result = await TiffSearch.RecognizePagesAsync(source, pageCount, timeout.Token,
+                recognize: async (input, sizes, token) =>
+                {
+                    // ページごとに幅を変え、認識に渡すTIFFとページ情報の対応を確認する。
+                    Assert.Equal(sizes.ToArray(), ReadPageSizes(input));
+                    if (Interlocked.Increment(ref started) == expectedWorkers) allWorkersStarted.SetResult();
+                    await allWorkersStarted.Task.WaitAsync(token);
+                    if (expectedWorkers > 1 && sizes[0].Width == 140)
+                        await laterBatchReady.Task.WaitAsync(token);
+                    else
+                        laterBatchReady.TrySetResult();
+                    return sizes.Select(size => new OcrSearchPage([], size)).ToArray();
+                });
+
+            Assert.Equal(expectedWorkers, started);
+            Size[] expectedSizes = Enumerable.Range(0, pageCount).Select(index => new Size(140 + index, 110)).ToArray();
+            Assert.Equal(expectedSizes, result.Pages.Select(page => page.PixelSize).ToArray());
+            using FileStream saved = result.OpenPreparedTiff();
+            Assert.Equal(expectedSizes, ReadPageSizes(saved));
+        }
+        finally
+        {
+            File.Delete(source);
+        }
+    }
+
+    [Fact]
+    public async Task Recognition_CancelsOtherBatchesAndClosesTheirInputsOnFailure()
+    {
+        if (Environment.ProcessorCount < 2) return;
+        string source = CreateBlankTiff(2);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var waitingBatchStarted = new TaskCompletionSource<FileStream>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            var failure = new InvalidDataException("Test recognition failure");
+            var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                TiffSearch.RecognizePagesAsync(source, 2, timeout.Token, recognize: async (input, sizes, token) =>
+                {
+                    if (sizes[0].Width == 140)
+                    {
+                        await waitingBatchStarted.Task.WaitAsync(token);
+                        throw failure;
+                    }
+
+                    waitingBatchStarted.SetResult(Assert.IsType<FileStream>(input));
+                    try { await Task.Delay(Timeout.Infinite, token); }
+                    finally { stopped.SetResult(); }
+                    return [];
+                }));
+            Assert.Same(failure, exception);
+            Assert.True(stopped.Task.IsCompletedSuccessfully);
+            Assert.False((await waitingBatchStarted.Task).CanRead);
+        }
+        finally
+        {
+            File.Delete(source);
         }
     }
 
@@ -148,4 +223,26 @@ public class OcrSearchTests
         gray.CopyPixels(pixels, gray.PixelWidth, 0);
         return pixels;
     }
+
+    private static string CreateBlankTiff(int pageCount)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"CSTViewer-OCR-batch-test-{Guid.NewGuid():N}.tif");
+        var encoder = new TiffBitmapEncoder();
+        const int height = 110;
+        for (int index = 0; index < pageCount; index++)
+        {
+            int width = 140 + index;
+            byte[] pixels = new byte[width * height];
+            Array.Fill(pixels, byte.MaxValue);
+            encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(width, height, 400, 400,
+                PixelFormats.Gray8, null, pixels, width)));
+        }
+        using var output = File.Create(path);
+        encoder.Save(output);
+        return path;
+    }
+
+    private static Size[] ReadPageSizes(Stream input) =>
+        new TiffBitmapDecoder(input, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad)
+            .Frames.Select(frame => new Size(frame.PixelWidth, frame.PixelHeight)).ToArray();
 }

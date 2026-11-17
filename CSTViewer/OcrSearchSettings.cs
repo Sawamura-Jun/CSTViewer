@@ -9,6 +9,8 @@ internal static class OcrSearchSettings
     public const string VerticalJapaneseModel = "jpn_vert";
     public const string EngineMode = "1";
     public const string PageSegmentationMode = "12";
+    public const string TesseractOpenMpThreadLimit = "1";
+    public const int MaxTesseractProcesses = 4;
     public const int LineRemovalInkThreshold = 127;
     public const double LineRemovalReferenceDpi = 400;
     public const int LineRemovalMaxGlyphSize = 160;

@@ -41,6 +41,8 @@ internal static class TiffOcr
             StandardErrorEncoding = Encoding.UTF8
         };
         startInfo.Environment.Remove("TESSDATA_PREFIX");
+        // ページの組ごとにプロセスを分け、各プロセスのOpenMPを1スレッドに制限する。
+        startInfo.Environment["OMP_THREAD_LIMIT"] = OcrSearchSettings.TesseractOpenMpThreadLimit;
         foreach (string argument in new[]
         {
             "stdin", "stdout", "--tessdata-dir", tessdata, "-l", OcrSearchSettings.Languages,
