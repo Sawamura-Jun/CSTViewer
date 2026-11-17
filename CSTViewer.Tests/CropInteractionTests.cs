@@ -81,6 +81,52 @@ public class CropInteractionTests
     }
 
     [Fact]
+    public Task RightButtonWheel_ResizesWindowAndRestoresPreviousCrop() => RunOnStaAsync(async () =>
+    {
+        string path = SaveImage();
+        var window = CreateWindow();
+        try
+        {
+            window.Show();
+            await window.OpenImageAsync(path);
+            window.UpdateLayout();
+            var canvas = (Canvas)window.FindName("ImageViewportCanvas");
+            Select(window);
+            var selection = GetSelection(window);
+            Rect previous = selection.ImageRectangle;
+            Point start = ImagePoint(window, new Point(300, 300));
+            Point end = ImagePoint(window, new Point(900, 700));
+            Assert.True(window.BeginCropSelection(start));
+            window.UpdateCropDrag(end);
+            Assert.NotEqual(previous, selection.ImageRectangle);
+            Assert.True(canvas.IsMouseCaptured);
+
+            double width = window.Width;
+            window.HandleViewportWheel(end, 120, ModifierKeys.None, isRightButtonPressed: true);
+            window.UpdateLayout();
+            Assert.True(window.Width > width);
+            Assert.Equal(previous, selection.ImageRectangle);
+            Assert.False(selection.IsDragging);
+            Assert.False(canvas.IsMouseCaptured);
+
+            // 同じ右ボタン押下中の次のホイール入力でもサイズを変えられる。
+            width = window.Width;
+            window.HandleViewportWheel(end, -120, ModifierKeys.None, isRightButtonPressed: true);
+            window.UpdateLayout();
+            Assert.True(window.Width < width);
+            Assert.Equal(previous, selection.ImageRectangle);
+
+            start = ImagePoint(window, new Point(300, 300));
+            end = ImagePoint(window, new Point(900, 700));
+            Assert.True(window.BeginCropSelection(start));
+            window.CompleteCropDrag(end);
+            Assert.True(selection.HasSelection);
+            Assert.NotEqual(previous, selection.ImageRectangle);
+        }
+        finally { window.Close(); File.Delete(path); }
+    });
+
+    [Fact]
     public Task PageAndFileChanges_ClearSelectionAndSaveFailureRestoresControls()
     {
         return RunOnStaAsync(async () =>
@@ -255,7 +301,7 @@ public class CropInteractionTests
     }
 
     [Fact]
-    public Task HelpButton_ShowsCropDestinationIconAndInstructionsInBothLanguages() => RunOnStaAsync(() =>
+    public Task HelpButton_ShowsCropDestinationIconAndLocalizedInstructions() => RunOnStaAsync(() =>
     {
         var window = CreateWindow();
         try
@@ -279,11 +325,14 @@ public class CropInteractionTests
                 var iconContainer = Assert.Single(label.Inlines.OfType<InlineUIContainer>());
                 var icon = Assert.IsType<ToolbarIcon>(Assert.IsType<Border>(iconContainer.Child).Child);
                 Assert.Equal(toolbarIcon.Glyph, icon.Glyph);
-                Assert.Contains(language.Crop.SaveToDescription, new TextRange(document.ContentStart, document.ContentEnd).Text);
+                string documentText = new TextRange(document.ContentStart, document.ContentEnd).Text;
+                Assert.Contains(language.Crop.SaveToDescription, documentText);
                 var search = Assert.Single(language.Toolbar.Rows, row => row.ButtonName == nameof(MainWindow.SearchButton));
-                Assert.Contains(search.Description, new TextRange(document.ContentStart, document.ContentEnd).Text);
+                Assert.Contains(search.Description, documentText);
                 var ocr = Assert.Single(language.Toolbar.Rows, row => row.ButtonName == nameof(MainWindow.OcrButton));
-                Assert.Contains(ocr.Description, new TextRange(document.ContentStart, document.ContentEnd).Text);
+                Assert.Contains(ocr.Description, documentText);
+                Assert.Contains(language.LanguageCode == "ja" ? "右ボタン ＋ ホイール" : "right button + mouse wheel", documentText);
+                Assert.Contains(language.LanguageCode == "ja" ? "左右に並んでいる間は、タイトルバー" : "arranged side by side, use the title bar", documentText);
             }
         }
         finally { window.Close(); }

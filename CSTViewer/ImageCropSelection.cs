@@ -25,9 +25,16 @@ internal sealed class ImageCropSelection
 
     public bool BeginSelection(Point position, ImageViewport viewport)
     {
-        Clear();
         Rect bounds = viewport.VisibleImageBounds;
-        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0) return false;
+        if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            Clear();
+            return false;
+        }
+
+        // ホイールでウィンドウをリサイズする場合に備え、確定済みの選択範囲を保持する。
+        _startRectangle = ImageRectangle;
+        _hasMoved = false;
         _mode = CropHit.NewSelection;
         _pressPosition = position;
         _startImagePosition = viewport.ViewToImage(Clamp(position, bounds));
@@ -93,10 +100,10 @@ internal sealed class ImageCropSelection
         return save && HasSelection;
     }
 
-    public void CancelDrag()
+    public void CancelDrag(bool restorePreviousSelection = false)
     {
         if (!IsDragging) return;
-        ImageRectangle = _mode == CropHit.NewSelection ? Rect.Empty : _startRectangle;
+        ImageRectangle = _mode == CropHit.NewSelection && !restorePreviousSelection ? Rect.Empty : _startRectangle;
         _mode = CropHit.None;
     }
 

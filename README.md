@@ -42,10 +42,12 @@ After the last viewer window closes, CSTViewer stays in the Windows notification
 | --- | --- |
 | Open an image | **Open** button or drag and drop an image file |
 | Choose where to save the original image file | Ctrl+click **Save** or Ctrl+S |
-| Zoom around the pointer / pan | Mouse wheel / left-drag outside the crop selection |
+| Zoom around the pointer | Mouse wheel |
+| Move the window in Fit mode | Left-drag the image outside the crop selection. During side-by-side Sync, drag the title bar. |
+| Pan the zoomed image | Left-drag outside the crop selection |
 | Fit the entire image or trim margins when already fitted | F |
 | Toggle window resizing with mouse wheel zoom | A |
-| Resize the window in normal view | Ctrl + mouse wheel |
+| Resize the window in normal view | Hold Ctrl or the right mouse button and turn the wheel over the image area |
 | Maximize / restore the window | Left double-click on the image area |
 | Rotate displayed page 90° right / left | R / L |
 | Previous / next TIFF page | Page Up or 1 / Page Down or 2 |

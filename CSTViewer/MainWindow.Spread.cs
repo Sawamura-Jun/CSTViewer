@@ -14,6 +14,8 @@ public partial class MainWindow
     internal ViewportSyncState? SpreadViewState => _viewport.GetSyncState();
     private bool CanNavigateSpread => !_spreadController.IsChangingImages(this) && !IsSpreadBusy
         && _spreadController.EnabledPartner(this)?.IsSpreadBusy != true;
+    private bool IsInActiveSpreadLayout => IsArrangedForSpread
+        && _spreadController.EnabledPartner(this)?.IsArrangedForSpread == true;
 
     private void NewWindowButton_Click(object sender, RoutedEventArgs e) => CreateNewWindow();
     private void SpreadLayoutButton_Click(object sender, RoutedEventArgs e) => ToggleSpread();

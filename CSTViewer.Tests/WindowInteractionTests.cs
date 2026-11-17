@@ -574,7 +574,7 @@ public class WindowInteractionTests
     });
 
     [Fact]
-    public Task DoubleClick_TogglesMaximizeAndCtrlWheelDoesNotAlterRestoreSize()
+    public Task DoubleClick_TogglesMaximizeAndWindowResizeWheelDoesNotAlterRestoreSize()
     {
         return RunOnStaAsync(() =>
         {
@@ -590,6 +590,7 @@ public class WindowInteractionTests
                 Assert.True(RaiseMouseDown(canvas, MouseButton.Left, 2).Handled);
                 Assert.Equal(WindowState.Maximized, window.WindowState);
                 window.HandleViewportWheel(new Point(), -120, ModifierKeys.Control);
+                window.HandleViewportWheel(new Point(), 120, ModifierKeys.None, isRightButtonPressed: true);
                 Assert.Equal(WindowState.Maximized, window.WindowState);
                 RaiseMouseDown(canvas, MouseButton.Left, 2);
                 window.UpdateLayout();

@@ -11,6 +11,8 @@ public partial class MainWindow
     private HwndSource? _spreadWindowSource;
     private bool _applyingSpreadWindowBounds;
     private bool _spreadCaptionDrag;
+    private bool IsArrangedForSpread => IsVisible && WindowState == WindowState.Normal
+        && _spreadWindowPlacement.IsWaitingToRestore;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -83,6 +85,14 @@ public partial class MainWindow
         return IntPtr.Zero;
     }
 
+    private void BeginWindowCaptionDrag(Point screenPosition)
+    {
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        // タイトルバーと同じマウス通知を送り、移動やスナップをWindowsに任せる。
+        int packed = ((int)screenPosition.X & 0xFFFF) | ((int)screenPosition.Y << 16);
+        SendMessage(hwnd, WmNcLeftButtonDown, new IntPtr(HitCaption), new IntPtr(packed));
+    }
+
     private void RemoveSpreadWindowHook()
     {
         _spreadWindowSource?.RemoveHook(SpreadWindowHook);
@@ -125,4 +135,7 @@ public partial class MainWindow
     [DllImport("user32.dll", EntryPoint = "SetWindowPos")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetSpreadWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
 }

@@ -55,12 +55,14 @@ public partial class MainWindow
     {
         if (!CanEditCrop) return false;
         StopPanning();
-        ClearCropSelection();
-        if (!_cropSelection.BeginSelection(position, _viewport)) return false;
+        if (_cropSelection.IsDragging) ClearCropSelection();
+        _cropStatus = null;
         // キャプチャで画像領域の外へ出たドラッグとボタン解放も受け取る。
-        if (!ImageViewportCanvas.CaptureMouse())
+        if (!_cropSelection.BeginSelection(position, _viewport) || !ImageViewportCanvas.CaptureMouse())
         {
             _cropSelection.CancelDrag();
+            UpdateCropOverlay();
+            UpdateCropCursor(position);
             return false;
         }
         ImageViewportCanvas.Focus();
@@ -119,10 +121,10 @@ public partial class MainWindow
         if (!_isPanning) ImageViewportCanvas.Cursor = _viewport.HasImage ? Cursors.Hand : Cursors.Arrow;
     }
 
-    private void CancelCropDrag()
+    private void CancelCropDrag(bool restorePreviousSelection = false)
     {
         if (!_cropSelection.IsDragging) return;
-        _cropSelection.CancelDrag();
+        _cropSelection.CancelDrag(restorePreviousSelection);
         ImageViewportCanvas.ReleaseMouseCapture();
         UpdateCropOverlay();
     }

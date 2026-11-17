@@ -728,15 +728,16 @@ public partial class MainWindow : Window
 
     private void ImageViewportCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        HandleViewportWheel(e.GetPosition(ImageViewportCanvas), e.Delta, Keyboard.Modifiers);
+        HandleViewportWheel(e.GetPosition(ImageViewportCanvas), e.Delta, Keyboard.Modifiers,
+            e.RightButton == MouseButtonState.Pressed);
         e.Handled = true;
     }
 
-    internal void HandleViewportWheel(Point anchor, int delta, ModifierKeys modifiers)
+    internal void HandleViewportWheel(Point anchor, int delta, ModifierKeys modifiers, bool isRightButtonPressed = false)
     {
         if (_isLoading || _isCropBusy || IsDiffBusy || IsSaveBusy || _isClosed || delta == 0) return;
-        CancelCropDrag();
-        if ((modifiers & ModifierKeys.Control) != 0)
+        CancelCropDrag(restorePreviousSelection: isRightButtonPressed);
+        if (isRightButtonPressed || (modifiers & ModifierKeys.Control) != 0)
         {
             if (WindowState != WindowState.Normal) return;
             StopPanning();
@@ -843,6 +844,16 @@ public partial class MainWindow : Window
         if (BeginCropAdjustment(_lastPanPosition))
         {
             e.Handled = true;
+            return;
+        }
+        if (_viewport.IsFitMode)
+        {
+            if (!IsInActiveSpreadLayout && e.ButtonState == MouseButtonState.Pressed
+                && _viewport.VisibleImageBounds.Contains(_lastPanPosition))
+            {
+                e.Handled = true;
+                BeginWindowCaptionDrag(ImageViewportCanvas.PointToScreen(_lastPanPosition));
+            }
             return;
         }
         // マウスキャプチャにより、表示領域の外へドラッグしても操作を継続する。
