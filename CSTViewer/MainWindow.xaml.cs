@@ -848,7 +848,7 @@ public partial class MainWindow : Window
         }
         if (_viewport.IsFitMode)
         {
-            if (!IsInActiveSpreadLayout && e.ButtonState == MouseButtonState.Pressed
+            if (WindowState == WindowState.Normal && !IsInActiveSpreadLayout && e.ButtonState == MouseButtonState.Pressed
                 && _viewport.VisibleImageBounds.Contains(_lastPanPosition))
             {
                 e.Handled = true;

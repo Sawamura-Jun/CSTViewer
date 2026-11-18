@@ -49,7 +49,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             new("Mouse controls", "Action",
             [
                 ("Mouse wheel", "Zoom around the pointer. For TIFFs, the initial page image is used during zoom. To keep the image visible when zooming starts, right-click the CSTViewer notification area icon and select Keep detail while zooming TIFFs. The setting applies until CSTViewer exits."),
-                ("Left-drag", "When the status shows (Fit), drag the image to move the window. While Sync has both windows arranged side by side, use the title bar to move them. When zoomed in, drag to pan the image. Dragging the crop selection adjusts the selection."),
+                ("Left-drag", "When the window is in its normal state and the status shows (Fit), drag the image to move the window. While Sync has both windows arranged side by side, use the title bar to move them. When zoomed in, drag to pan the image. Dragging the crop selection adjusts the selection."),
                 ("Ctrl + mouse wheel / right button + mouse wheel", "Resize the window in its normal state. Hold the right mouse button while turning the wheel."),
                 ("Left double-click", "Maximize or restore the window."),
                 ("Middle-click", "Close the window. In Sync mode, close both windows."),
@@ -96,7 +96,7 @@ internal sealed record HelpContent(string LanguageCode, string DisplayName, stri
             new("マウス操作", "操作",
             [
                 ("ホイール", "ポインターの位置を中心に拡大・縮小します。TIFFのズーム中は最初に表示したページ画像を使います。ズーム開始時に表示していた画像を使うには、通知領域のCSTViewerアイコンを右クリックして「Keep detail while zooming TIFFs」にチェックを入れます。設定はCSTViewerを終了するまで有効です。"),
-                ("左ドラッグ", "表示倍率に (Fit) が付いているときは、画像をドラッグするとウィンドウを移動できます。Sync で2つのウィンドウが左右に並んでいる間は、タイトルバーをドラッグして移動します。拡大表示中は画像を移動します。切り抜きの選択枠をドラッグすると選択範囲を調整します。"),
+                ("左ドラッグ", "ウィンドウが通常表示で、表示倍率に (Fit) が付いているときは、画像をドラッグしてウィンドウを移動できます。Sync で2つのウィンドウが左右に並んでいる間は、タイトルバーをドラッグして移動します。拡大表示中は画像を移動します。切り抜きの選択枠をドラッグすると選択範囲を調整します。"),
                 ("Ctrl ＋ ホイール／右ボタン ＋ ホイール", "通常表示時にウィンドウのサイズを変更します。右ボタンを押したままホイールを回しても同じ操作ができます。"),
                 ("左ダブルクリック", "最大化と通常表示を切り替えます。"),
                 ("中クリック", "ウィンドウを閉じます。同期中は2つとも閉じます。"),
