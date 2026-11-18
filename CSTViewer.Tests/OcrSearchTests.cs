@@ -30,6 +30,27 @@ public class OcrSearchTests
         Rect[][] english = OcrTextSearch.FindMatches(pages, "ｃＫｅＴ ＭＯＴ", CancellationToken.None);
         Assert.Equal(new Rect(0.29, 0.2, 0.36, 0.1), Assert.Single(english[1]));
         Assert.Empty(OcrTextSearch.FindMatches(pages, "motor plate", CancellationToken.None)[1]);
+        Assert.Empty(OcrTextSearch.FindMatches(pages, "ぷ径", CancellationToken.None)[1]);
+    }
+
+    [Theory]
+    [InlineData("きょ", "うしつ", "きようし")]
+    [InlineData("きよ", "うしつ", "きょうし")]
+    [InlineData("ティ", "ケット", "テイケツ")]
+    [InlineData("テイ", "ケツト", "ﾃｨｹｯ")]
+    [InlineData("ﾃｨ", "ｹｯﾄ", "テイケツ")]
+    [InlineData("アㇰ", "ㇳン", "クト")]
+    [InlineData("ア\U0001B155", "ウワ", "コウ")]
+    public void Search_IgnoresKanaSizeAndKeepsWordBounds(string firstWord, string secondWord, string query)
+    {
+        var page = new OcrSearchPage(
+            [[new("前", new Rect(0, 20, 10, 10)), new(firstWord, new Rect(12, 20, 20, 10)),
+                new(secondWord, new Rect(34, 20, 30, 10)), new("後", new Rect(66, 20, 10, 10))]],
+            new Size(100, 100));
+
+        Rect[] matches = Assert.Single(OcrTextSearch.FindMatches([page], query, CancellationToken.None));
+
+        Assert.Equal(new Rect(0.12, 0.2, 0.52, 0.1), Assert.Single(matches));
     }
 
     [Theory]
